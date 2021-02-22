@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 - 2018 Leipzig University (Database Research Group)
+ * Copyright © 2014 - 2021 Leipzig University (Database Research Group)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,16 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.gradoop.demo.server;
 
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
-import org.gradoop.common.model.impl.pojo.EPGMEdge;
-import org.gradoop.common.model.impl.pojo.EPGMGraphHead;
-import org.gradoop.common.model.impl.pojo.EPGMVertex;
+import org.gradoop.common.model.api.entities.Edge;
+import org.gradoop.common.model.api.entities.GraphHead;
+import org.gradoop.common.model.api.entities.Vertex;
 import org.gradoop.common.model.impl.properties.Property;
+import org.gradoop.temporal.model.impl.pojo.TemporalEdge;
+import org.gradoop.temporal.model.impl.pojo.TemporalGraphHead;
+import org.gradoop.temporal.model.impl.pojo.TemporalVertex;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,7 +32,6 @@ import java.util.stream.Collectors;
 /**
  * Converts a logical graph or a read JSON into a cytoscape-conform JSON.
  */
-
 public class CytoJSONBuilder {
   /**
    * Key for vertex, edge and graph id.
@@ -86,140 +87,85 @@ public class CytoJSONBuilder {
    * @return a cytoscape-conform JSON
    * @throws JSONException if the creation of the JSON fails
    */
-  static String getJSONString(List<EPGMGraphHead> graphHeads, List<EPGMVertex> vertices, List<EPGMEdge> edges)
+  static String getJSONString(List<TemporalGraphHead> graphHeads,
+    List<TemporalVertex> vertices,
+    List<TemporalEdge> edges)
     throws JSONException {
 
     JSONObject returnedJSON = new JSONObject();
 
     returnedJSON.put(TYPE, "graph");
 
-    List<JSONObject> graphObjects = graphHeads.stream().map(graphHead -> {
-      try {
-        JSONObject graphObject = new JSONObject();
-
-        JSONObject graphProperties = new JSONObject();
-        graphObject.put(IDENTIFIER, graphHead.getId());
-        graphObject.put(LABEL, graphHead.getLabel());
-        if (graphHead.getProperties() != null) {
-          for (Property prop : graphHead.getProperties()) {
-            graphProperties.put(prop.getKey(), prop.getValue());
-          }
-        }
-        return graphObject.put(PROPERTIES, graphProperties);
-      } catch (JSONException e) {
-        throw new RuntimeException("Foobar");
-      }
-    }).collect(Collectors.toList());
+    List<JSONObject> graphObjects = graphHeads.stream().map(CytoJSONBuilder::getGraphHeadObject)
+      .collect(Collectors.toList());
 
     returnedJSON.put(GRAPHS, graphObjects);
 
     JSONArray vertexArray = new JSONArray();
-    for (EPGMVertex vertex : vertices) {
-      JSONObject vertexObject = new JSONObject();
-      JSONObject vertexData = new JSONObject();
-
-      vertexData.put(IDENTIFIER, vertex.getId());
-      vertexData.put(LABEL, vertex.getLabel());
-      JSONObject vertexProperties = new JSONObject();
-      if (vertex.getProperties() != null) {
-        for (Property prop : vertex.getProperties()) {
-          vertexProperties.put(prop.getKey(), prop.getValue());
-        }
-      }
-      vertexData.put(PROPERTIES, vertexProperties);
-      vertexObject.put(DATA, vertexData);
-      vertexArray.put(vertexObject);
+    for (TemporalVertex vertex : vertices) {
+      vertexArray.put(getVertexObject(vertex));
     }
     returnedJSON.put(VERTICES, vertexArray);
 
     JSONArray edgeArray = new JSONArray();
-    for (EPGMEdge edge : edges) {
-      JSONObject edgeObject = new JSONObject();
-      JSONObject edgeData = new JSONObject();
-      edgeData.put(EDGE_SOURCE, edge.getSourceId());
-      edgeData.put(EDGE_TARGET, edge.getTargetId());
-      edgeData.put(IDENTIFIER, edge.getId());
-      edgeData.put(LABEL, edge.getLabel());
-      JSONObject edgeProperties = new JSONObject();
-      if (edge.getProperties() != null) {
-        for (Property prop : edge.getProperties()) {
-          edgeProperties.put(prop.getKey(), prop.getValue());
-        }
-      }
-      edgeData.put(PROPERTIES, edgeProperties);
-      edgeObject.put(DATA, edgeData);
-      edgeArray.put(edgeObject);
+    for (TemporalEdge edge : edges) {
+      edgeArray.put(getEdgeObject(edge));
     }
-
-
     returnedJSON.put(EDGES, edgeArray);
 
     return returnedJSON.toString();
   }
 
-  /**
-   * Takes a JSON containing a logical graph and converts it into a cytoscape-conform JSON.
-   *
-   * @param graph    graph JSON object
-   * @param vertices vertices JSON array
-   * @param edges    edges JSON array
-   * @return cytoscape-conform JSON
-   * @throws JSONException if JSON creation fails
-   */
-  static String getJSONString(JSONObject graph, JSONArray vertices, JSONArray edges) throws
-    JSONException {
+  private static JSONObject getGraphHeadObject(GraphHead graphHead) {
+    try {
+      JSONObject graphObject = new JSONObject();
 
-    JSONObject returnedJSON = new JSONObject();
-
-    returnedJSON.put(TYPE, "graph");
-
-
-    JSONObject graphObject = new JSONObject();
-    graphObject.put(IDENTIFIER, graph.getString("id"));
-    graphObject.put(LABEL, graph.getJSONObject("meta").getString("label"));
-
-    graphObject.put(PROPERTIES, graph.getJSONObject("data"));
-
-    JSONArray graphArray = new JSONArray();
-    graphArray.put(graphObject);
-
-    returnedJSON.put(GRAPHS, graphArray);
-
-    JSONArray vertexArray = new JSONArray();
-    for (int i = 0; i < vertices.length(); i++) {
-      JSONObject vertex = vertices.getJSONObject(i);
-
-      JSONObject vertexData = new JSONObject();
-      vertexData.put(IDENTIFIER, vertex.getString("id"));
-      vertexData.put(LABEL, vertex.getJSONObject("meta").getString("label"));
-
-      vertexData.put(PROPERTIES, vertex.getJSONObject("data"));
-
-      JSONObject vertexObject = new JSONObject();
-      vertexObject.put(DATA, vertexData);
-
-      vertexArray.put(vertexObject);
+      JSONObject graphProperties = new JSONObject();
+      graphObject.put(IDENTIFIER, graphHead.getId());
+      graphObject.put(LABEL, graphHead.getLabel());
+      if (graphHead.getProperties() != null) {
+        for (Property prop : graphHead.getProperties()) {
+          graphProperties.put(prop.getKey(), prop.getValue());
+        }
+      }
+      return graphObject.put(PROPERTIES, graphProperties);
+    } catch (JSONException exception) {
+      throw new RuntimeException("Failed parsing graph head.");
     }
-    returnedJSON.put(VERTICES, vertexArray);
+  }
 
-    JSONArray edgeArray = new JSONArray();
-    for (int i = 0; i < edges.length(); i++) {
-      JSONObject edge = edges.getJSONObject(i);
+  private static JSONObject getVertexObject(Vertex vertex) throws JSONException {
+    JSONObject vertexObject = new JSONObject();
+    JSONObject vertexData = new JSONObject();
 
-      JSONObject edgeData = new JSONObject();
-      edgeData.put(EDGE_SOURCE, edge.getString("source"));
-      edgeData.put(EDGE_TARGET, edge.getString("target"));
-      edgeData.put(IDENTIFIER, edge.getString("id"));
-      edgeData.put(LABEL, edge.getJSONObject("meta").getString("label"));
-
-      edgeData.put(PROPERTIES, edge.getJSONObject("data"));
-
-      JSONObject edgeObject = new JSONObject();
-      edgeObject.put(DATA, edgeData);
-
-      edgeArray.put(edgeObject);
+    vertexData.put(IDENTIFIER, vertex.getId());
+    vertexData.put(LABEL, vertex.getLabel());
+    JSONObject vertexProperties = new JSONObject();
+    if (vertex.getProperties() != null) {
+      for (Property prop : vertex.getProperties()) {
+        vertexProperties.put(prop.getKey(), prop.getValue());
+      }
     }
-    returnedJSON.put(EDGES, edgeArray);
-    return returnedJSON.toString();
+    vertexData.put(PROPERTIES, vertexProperties);
+    vertexObject.put(DATA, vertexData);
+    return vertexObject;
+  }
+
+  private static JSONObject getEdgeObject(Edge edge) throws JSONException {
+    JSONObject edgeObject = new JSONObject();
+    JSONObject edgeData = new JSONObject();
+    edgeData.put(EDGE_SOURCE, edge.getSourceId());
+    edgeData.put(EDGE_TARGET, edge.getTargetId());
+    edgeData.put(IDENTIFIER, edge.getId());
+    edgeData.put(LABEL, edge.getLabel());
+    JSONObject edgeProperties = new JSONObject();
+    if (edge.getProperties() != null) {
+      for (Property prop : edge.getProperties()) {
+        edgeProperties.put(prop.getKey(), prop.getValue());
+      }
+    }
+    edgeData.put(PROPERTIES, edgeProperties);
+    edgeObject.put(DATA, edgeData);
+    return edgeObject;
   }
 }

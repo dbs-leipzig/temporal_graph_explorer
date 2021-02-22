@@ -1,0 +1,177 @@
+<!--
+ * Copyright © 2014 - 2021 Leipzig University (Database Research Group)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Temporal Graph Explorer | Snapshot</title>
+    <link rel="stylesheet" type="text/css" href="../stylesheets/spectre.min.css" />
+    <link rel="stylesheet" type="text/css" href="../stylesheets/spectre-exp.min.css" />
+    <link rel="stylesheet" type="text/css" href="../stylesheets/spectre-icons.min.css" />
+    <link rel="stylesheet" type="text/css" href="../stylesheets/jquery.qtip.css">
+    <link rel="stylesheet" type="text/css" href="../stylesheets/select2.min.css">
+    <link rel="stylesheet" type="text/css" href="../stylesheets/layout.css">
+
+    <script src="../javascript/jquery/jquery-1.11.3.min.js"></script>
+    <script src="../javascript/cytoscape/3.15.2/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="../javascript/cytoscape/cytoscape-popper.js"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <script src="../javascript/cytoscape/dagre.js"></script>
+    <script src="../javascript/cytoscape/cytoscape-dagre.js"></script>
+    <script src="../javascript/select2/select2.full.min.js"></script>
+
+    <script src="../javascript/common.js"></script>
+    <script src="../javascript/snapshot.js"></script>
+</head>
+<body>
+<header class="page-header">
+    <section class="container">
+        <nav class="navbar">
+            <section class="navbar-section">
+                <a href="/">
+                    <img src="../images/ul-logo.png" class="navbar-logo small">
+                </a>
+                <a href="snapshot.html" class="btn btn-link active">Snapshot</a>
+                <a href="difference.html" class="btn btn-link">Difference</a>
+                <a href="keyedgrouping.html" class="btn btn-link">Temporal Grouping</a>
+            </section>
+            <section class="navbar-center">
+                <a href="/">
+                    <img src="../images/tge-logo-small.png" class="navbar-logo">
+                </a>
+            </section>
+            <section class="navbar-section">
+                <a href="/">
+                    <img src="../images/gradoop.svg" class="navbar-logo small">
+                </a>
+            </section>
+        </nav>
+    </section>
+</header>
+<section class="navbar-spacer">&nbsp;</section>
+
+<div class="content-wrapper">
+    <div class="container">
+        <div class="columns">
+            <div class="column col-2">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Snapshot Retrieval</div>
+                    </div>
+                    <div class="panel-body">
+                        <form id="snapshot-query-form">
+                            <fieldset>
+                                <div class="form-group">
+                                    <label class="form-label" for="databaseName">Graph</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="databaseName" name="databaseName" style="width:50%">
+                                            <option value="Example">Example</option>
+                                            <option value="Citibike-2018-Sampled">Citibike 2018 (1%)</option>
+                                        </select>
+                                        <button id="showWholeGraph" class="btn input-group-btn">Show the whole graph</button>
+                                    </div>
+                                </div>
+
+                                <div class="header">
+                                    Configuration
+                                    <hr>
+                                </div>
+
+                                <div class="form-group" id="dimensionForm">
+                                    <label class="form-label">Time dimension</label>
+                                    <label class="form-radio form-inline">
+                                        <input type="radio" name="dimension" value="val" checked>
+                                        <i class="form-icon"></i> Valid-time
+                                    </label>
+                                    <label class="form-radio form-inline">
+                                        <input type="radio" name="dimension" value="tx">
+                                        <i class="form-icon"></i> Transaction-time
+                                    </label>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Predicate</label>
+                                    <select class="form-select" id="predicate">
+                                        <option value="all">ALL</option>
+                                        <option value="asOf">AS OF {t1}</option>
+                                        <option value="fromTo">FROM {t1} TO {t2}</option>
+                                        <option value="betweenAnd">BETWEEN {t1} AND {t2}</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="input-timestamp-1">Timestamp 1 {t1}</label>
+                                    <input class="form-input" type="text" id="input-timestamp-1" placeholder="2018-07-01 12:00:00" value="2018-07-01 12:00:00">
+                                    <label class="form-label" for="input-timestamp-2">Timestamp 2 {t2}</label>
+                                    <input class="form-input" type="text" id="input-timestamp-2" placeholder="2018-08-01 12:00:00" value="2018-08-01 12:00:00">
+                                </div>
+
+                            </fieldset>
+                        </form>
+                    </div>
+                    <div class="panel-footer">
+                        <button class="execute-button btn btn-primary btn-block">Execute</button>
+                    </div>
+                </div>
+            </div>
+            <div class="column col-10">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="canvas"></div>
+                    </div>
+                    <div class="card-footer">
+                        <h5>View options</h5>
+                        <label class="form-switch" for="showEdgeLabels">
+                            <input type="checkbox" id="showEdgeLabels" name="showEdgeLabels" value="true" class="redraw">
+                            <i class="form-icon"></i> Show Edge Labels
+                        </label>
+                        <label class="form-switch" for="showCountAsSize">
+                            <input type="checkbox" id="showCountAsSize" name="showCountAsSize" value="true" class="redraw">
+                            <i class="form-icon"></i> Adaptive element size
+                            <span class="option-tooltip tooltip tooltip-top" data-tooltip="Requires count aggregate functions.">?</span>
+                        </label>
+                        <label class="form-switch" for="hideNullGroups">
+                            <input type="checkbox" id="hideNullGroups" name="hideNullGroups" value="true" class="redraw">
+                            <i class="form-icon"></i> Hide NULL groups
+                        </label>
+                        <label class="form-switch" for="hideDisconnected">
+                            <input type="checkbox" id="hideDisconnected" name="hideDisconnected" value="true" class="redraw">
+                            <i class="form-icon"></i> Hide disconnected vertices
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div class="container">
+        <p>
+            <a href="https://github.com/ChrizZz110/temporal_graph_explorer"> Github </a>
+            |
+            Gradoop Version 0.5.1
+            |
+            Temporal Graph Explorer Version 0.2.0
+        </p>
+        <p>
+            Licensed under the <a href="https://github.com/ChrizZz110/temporal_graph_explorer/blob/master/LICENSE" >Apache 2.0 License</a>.
+        </p>
+    </div>
+</footer>
+</body>
+</html>
