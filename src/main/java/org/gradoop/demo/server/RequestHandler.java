@@ -17,6 +17,7 @@ package org.gradoop.demo.server;
 
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.io.LocalCollectionOutputFormat;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
@@ -27,6 +28,7 @@ import org.gradoop.demo.server.functions.LabelGroupReducer;
 import org.gradoop.demo.server.functions.LabelMapper;
 import org.gradoop.demo.server.functions.LabelReducer;
 import org.gradoop.demo.server.functions.PropertyKeyMapper;
+import org.gradoop.demo.server.functions.PropertyKeyValueMapper;
 import org.gradoop.demo.server.pojo.AggFunctionArguments;
 import org.gradoop.demo.server.pojo.DifferenceRequest;
 import org.gradoop.demo.server.pojo.KeyFunctionArguments;
@@ -37,7 +39,9 @@ import org.gradoop.flink.model.api.functions.KeyFunction;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.average.AverageProperty;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.count.Count;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.max.MaxProperty;
+import org.gradoop.flink.model.impl.operators.aggregation.functions.max.MaxVertexProperty;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.min.MinProperty;
+import org.gradoop.flink.model.impl.operators.aggregation.functions.min.MinVertexProperty;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.sum.SumProperty;
 import org.gradoop.flink.model.impl.operators.keyedgrouping.GroupingKeys;
 import org.gradoop.flink.model.impl.operators.keyedgrouping.KeyedGrouping;
@@ -60,12 +64,14 @@ import org.gradoop.temporal.model.impl.pojo.TemporalGraphHead;
 import org.gradoop.temporal.model.impl.pojo.TemporalVertex;
 import org.gradoop.temporal.util.TemporalGradoopConfig;
 
+import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
@@ -80,6 +86,7 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -87,6 +94,14 @@ import java.util.Set;
  */
 @Path("")
 public class RequestHandler {
+
+  /**
+   * Aggregate literals.
+   */
+  public static final String MIN_LAT = "min_lat";
+  public static final String MAX_LAT = "max_lat";
+  public static final String MIN_LONG = "min_long";
+  public static final String MAX_LONG = "max_long";
 
   /**
    * The filename of the metadata json.
@@ -134,11 +149,28 @@ public class RequestHandler {
     }
   }
 
+  @GET
+  @Path("/graphs")
+  @Produces("application/json;charset=utf-8")
+  public Response getGraphs() throws Exception {
+    final URL resource = RequestHandler.class.getResource("/data");
+    JSONArray result = new JSONArray();
+
+    String path = resource.getPath();
+
+    for (File current : Objects.requireNonNull(new File(path).listFiles())) {
+      if (current.isDirectory()) {
+        result.put(current.getName());
+      }
+    }
+    return Response.ok(result.toString()).build();
+  }
+
   /**
-   * Get the complete graph in cytoscape-conform form.
+   * Get the complete graph in eChars-conform form.
    *
    * @param databaseName name of the database
-   * @return Response containing the graph as a JSON, in cytoscape conform format.
+   * @return Response containing the graph as a JSON, in eCharts conform format.
    * @throws JSONException if JSON creation fails
    * @throws IOException if reading fails
    */
@@ -150,7 +182,7 @@ public class RequestHandler {
 
     TemporalCSVDataSource source = new TemporalCSVDataSource(path, temporalConfig);
     TemporalGraph graph = source.getTemporalGraph();
-    String json = CytoJSONBuilder.getJSONString(
+    String json = EChartsJSONBuilder.getJSONString(
       graph.getGraphHead().collect(),
       graph.getVertices().collect(),
       graph.getEdges().collect());
@@ -158,6 +190,12 @@ public class RequestHandler {
     return Response.ok(json).build();
   }
 
+  /**
+   * Applies a key-based grouping.
+   *
+   * @param request the grouping configuration
+   * @return Response containing the graph as a JSON, in eCharts conform format.
+   */
   @POST
   @Path("/keyedgrouping")
   @Produces("application/json;charset=utf-8")
@@ -222,6 +260,12 @@ public class RequestHandler {
     return createResponse(graph);
   }
 
+  /**
+   * Applies the snapshot operator.
+   *
+   * @param request the configuration of the snapshot operator.
+   * @return Response containing the graph as a JSON, in eCharts conform format.
+   */
   @POST
   @Path("/snapshot")
   @Produces("application/json;charset=utf-8")
@@ -276,10 +320,16 @@ public class RequestHandler {
     return createResponse(graph);
   }
 
+  /**
+   * Applies the difference operator.
+   *
+   * @param request the configuration of the difference operator.
+   * @return Response containing the graph as a JSON, in eCharts conform format.
+   */
   @POST
   @Path("/difference")
   @Produces("application/json;charset=utf-8")
-  public Response getData(DifferenceRequest request) {
+  public Response getData(DifferenceRequest request) throws Exception {
 
     //load the database
     String databaseName = request.getDbName();
@@ -350,6 +400,12 @@ public class RequestHandler {
     return createResponse(graph);
   }
 
+  /**
+   * Creates the eCharts representation of the temporal graph used as response to the frontend.
+   *
+   * @param graph the graph to submit to the frontend
+   * @return a Response as eCharts representation of the temporal graph
+   */
   private Response createResponse(TemporalGraph graph) {
     List<TemporalGraphHead> resultHead = new ArrayList<>();
     List<TemporalVertex> resultVertices = new ArrayList<>();
@@ -359,15 +415,10 @@ public class RequestHandler {
     graph.getVertices().output(new LocalCollectionOutputFormat<>(resultVertices));
     graph.getEdges().output(new LocalCollectionOutputFormat<>(resultEdges));
 
-    return getResponse(resultHead, resultVertices, resultEdges);
-  }
-
-  private Response getResponse(List<TemporalGraphHead> resultHead, List<TemporalVertex> resultVertices,
-    List<TemporalEdge> resultEdges) {
     try {
       ENV.execute();
       // build the response JSON from the collections
-      String json = CytoJSONBuilder.getJSONString(resultHead, resultVertices, resultEdges);
+      String json = EChartsJSONBuilder.getJSONString(resultHead, resultVertices, resultEdges);
       return Response.ok(json).build();
 
     } catch (Exception e) {
@@ -378,12 +429,11 @@ public class RequestHandler {
   }
 
   /**
-   * Compute property keys and labels.
+   * Compute property keys, labels and spatial bounds, if possible.
    *
    * @return JSONObject containing property keys and labels
    */
-  private JSONObject computeKeysAndLabels(String databaseName) throws IOException {
-
+  private JSONObject computeKeysAndLabels(String databaseName) {
     String path = RequestHandler.class.getResource("/data/" + databaseName).getPath();
 
     TemporalCSVDataSource source = new TemporalCSVDataSource(path, temporalConfig);
@@ -392,12 +442,12 @@ public class RequestHandler {
 
     JSONObject jsonObject = new JSONObject();
 
-    //compute the vertex and edge property keys and return them
     try {
       jsonObject.put("vertexKeys", getVertexKeys(graph));
       jsonObject.put("edgeKeys", getEdgeKeys(graph));
       jsonObject.put("vertexLabels", getVertexLabels(graph));
       jsonObject.put("edgeLabels", getEdgeLabels(graph));
+      jsonObject.put("spatialData", getSpatialData(graph));
       String dataPath = RequestHandler.class.getResource("/data/" + databaseName).getFile();
       FileWriter writer = new FileWriter(dataPath + META_FILENAME);
       jsonObject.write(writer);
@@ -414,6 +464,7 @@ public class RequestHandler {
 
   /**
    * Read the property keys and labels from the buffered JSON.
+   *
    * @param databaseName name of the database
    * @return JSONObject containing the property keys and labels
    * @throws IOException if reading fails
@@ -428,13 +479,11 @@ public class RequestHandler {
   }
 
   /**
-   * Takes any given graph and creates a JSONArray containing the vertex property keys and a
-   * boolean,
+   * Takes any given graph and creates a JSONArray containing the vertex property keys and a boolean,
    * specifying it the property has a numerical type.
    *
    * @param graph input graph
-   * @return  JSON array with property keys and boolean, that is true if the property type is
-   * numercial
+   * @return  JSON array with property keys and boolean, that is true if the property type is numerical
    * @throws Exception if the collecting of the distributed data fails
    */
   private JSONArray getVertexKeys(TemporalGraph graph) throws Exception {
@@ -534,6 +583,37 @@ public class RequestHandler {
   }
 
   /**
+   * Compute the spatial bounds of the graph.
+   *
+   * @param graph the graph used to aggregate the values
+   * @return JSONObject containing the aggregated spatial data
+   * @throws Exception if the computation fails
+   */
+  private JSONObject getSpatialData(TemporalGraph graph) throws Exception {
+    graph = graph.aggregate(
+      new MinVertexProperty("lat", MIN_LAT),
+      new MaxVertexProperty("lat", MAX_LAT),
+      new MinVertexProperty("long", MIN_LONG),
+      new MaxVertexProperty("long", MAX_LONG));
+
+    List<Tuple2<String, Double>> spatialData = graph.getGraphHead()
+      .flatMap(new PropertyKeyValueMapper())
+      .collect();
+
+    JSONObject spatialDataObject = new JSONObject();
+
+    spatialData.forEach(t -> {
+      try {
+        spatialDataObject.put(t.f0, t.f1);
+      } catch (JSONException e) {
+        e.printStackTrace();
+      }
+    });
+
+    return spatialDataObject;
+  }
+
+  /**
    * Create a JSON array from the sets of labels.
    *
    * @param labels set of labels
@@ -545,51 +625,66 @@ public class RequestHandler {
     return labelArray;
   }
 
-  private void addAggFunctionToList(
-    List<AggregateFunction> aggregateFunctionList,
-    AggFunctionArguments aggFunction) {
-    switch (aggFunction.getAgg()) {
+  /**
+   * Add the aggregate function represented by the {@link AggFunctionArguments} parameter to the list of
+   * aggregate functions.
+   *
+   * @param aggregateFunctionList the list which will be extended
+   * @param aggregateFunctionArguments the aggregate function configuration
+   */
+  private void addAggFunctionToList(List<AggregateFunction> aggregateFunctionList,
+    AggFunctionArguments aggregateFunctionArguments) {
+    switch (aggregateFunctionArguments.getAgg()) {
     case "count":
       aggregateFunctionList.add(new Count());
       break;
     case "minProp":
-      aggregateFunctionList.add(new MinProperty(aggFunction.getProp()));
+      aggregateFunctionList.add(new MinProperty(aggregateFunctionArguments.getProp()));
       break;
     case "maxProp":
-      aggregateFunctionList.add(new MaxProperty(aggFunction.getProp()));
+      aggregateFunctionList.add(new MaxProperty(aggregateFunctionArguments.getProp()));
       break;
     case "avgProp":
-      aggregateFunctionList.add(new AverageProperty(aggFunction.getProp()));
+      aggregateFunctionList.add(new AverageProperty(aggregateFunctionArguments.getProp()));
       break;
     case "sumProp":
-      aggregateFunctionList.add(new SumProperty(aggFunction.getProp()));
+      aggregateFunctionList.add(new SumProperty(aggregateFunctionArguments.getProp()));
       break;
     case "minTime":
-      TimeDimension dimension = getTimeDimension(aggFunction.getDimension());
-      TimeDimension.Field field = getPeriodBound(aggFunction.getPeriodBound());
+      TimeDimension dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
+      TimeDimension.Field field = getPeriodBound(aggregateFunctionArguments.getPeriodBound());
       aggregateFunctionList.add(new MinTime("minTime_" + dimension + "_" + field, dimension, field));
       break;
     case "maxTime":
-      dimension = getTimeDimension(aggFunction.getDimension());
-      field = getPeriodBound(aggFunction.getPeriodBound());
+      dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
+      field = getPeriodBound(aggregateFunctionArguments.getPeriodBound());
       aggregateFunctionList.add(new MaxTime("maxTime_" + dimension + "_" + field, dimension, field));
       break;
     case "minDuration":
-      dimension = getTimeDimension(aggFunction.getDimension());
+      dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
       aggregateFunctionList.add(new MinDuration("minDuration_" + dimension, dimension));
       break;
     case "maxDuration":
-      dimension = getTimeDimension(aggFunction.getDimension());
+      dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
       aggregateFunctionList.add(new MaxDuration("maxDuration_" + dimension, dimension));
       break;
     case "avgDuration":
-      dimension = getTimeDimension(aggFunction.getDimension());
+      dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
       aggregateFunctionList.add(new MaxDuration("avgDuration_" + dimension, dimension));
       break;
     }
   }
 
-  private <T extends TemporalElement> void addKeyFunctionToList(List<KeyFunction<T,?>> keyFunctionList, KeyFunctionArguments keyFunction) {
+  /**
+   * Add the key function represented by the {@link KeyFunctionArguments} parameter to the list of key
+   * functions.
+   *
+   * @param keyFunctionList he list which will be extended
+   * @param keyFunction the key function configuration
+   * @param <T> the type of the temporal element
+   */
+  private <T extends TemporalElement> void addKeyFunctionToList(List<KeyFunction<T,?>> keyFunctionList,
+    KeyFunctionArguments keyFunction) {
     switch (keyFunction.getKey()) {
     case "label":
       keyFunctionList.add(GroupingKeys.label());

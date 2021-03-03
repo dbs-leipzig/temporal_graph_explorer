@@ -17,19 +17,6 @@
 /**---------------------------------------------------------------------------------------------------------------------
  * Global Values
  *-------------------------------------------------------------------------------------------------------------------*/
-
-/**
- * True, if the graph layout should be force based
- * @type {boolean}
- */
-let useForceLayout = true;
-
-/**
- * True, if the default label should be used
- * @type {boolean}
- */
-let useDefaultLabel = true;
-
 /**
  * Maximum value for the count attribute of vertices
  * @type {number}
@@ -42,6 +29,11 @@ let maxVertexCount = 0;
  */
 let maxEdgeCount = 0;
 
+/**
+ * Indicates whether the leaflet map layout is currently in usage.
+ * @type {boolean}
+ */
+let isLeafletLayoutInUsage = false;
 
 /**---------------------------------------------------------------------------------------------------------------------
  * Callbacks
@@ -52,6 +44,25 @@ let maxEdgeCount = 0;
 $(document).on("change", "#databaseName", loadDatabaseProperties);
 
 /**
+ * Make sure that only one vertex/edge aggregate is checked for adaptive lement size.
+ */
+$(document).on('change', 'input[name="useForAdaptiveSize"]', function () {
+    let theSwitch = $(this);
+    if (theSwitch.is(':checked')) {
+        // check if the switch belongs to a vertex or edge
+        let thisTypeSelect = theSwitch.parents('.input-aggregate-func').find('select[name="type"]');
+        let aggType = thisTypeSelect.val();
+        //find all other switches and deactivate them
+        $('.input-aggregate-func').each(function( index ) {
+            let typeSelect = $( this ).find('select[name="type"]');
+            if (typeSelect.val() === aggType && typeSelect.get(0) !== thisTypeSelect.get(0)) {
+                $( this ).find('input[name="useForAdaptiveSize"]').prop( "checked", false );
+            }
+        });
+    }
+})
+
+/**
  * When the 'Show whole graph' button is clicked, send a request to the server for the whole graph
  */
 $(document).on("click",'#showWholeGraph', function(e) {
@@ -60,8 +71,6 @@ $(document).on("click",'#showWholeGraph', function(e) {
     btn.addClass("loading");
     let databaseName = getSelectedDatabase();
     $.post('http://localhost:2342/graph/' + databaseName, function(data) {
-        useDefaultLabel = true;
-        useForceLayout = false;
         drawGraph(data, true);
         btn.removeClass("loading");
     }, "json");
@@ -77,9 +86,6 @@ $(document).on('click', ".execute-button", function () {
         dbName: getSelectedDatabase(),
         keyFunctions: getKeyFunctions(),
         aggFunctions: getAggFunctions(),
-        //edgeKeys: getValues("#edgePropertyKeys"),
-        //vertexAggrFuncs: getValues("#vertexAggrFuncs"),
-        //edgeAggrFuncs: getValues("#edgeAggrFuncs"),
         vertexFilters: getValues("#vertexFilters"),
         edgeFilters: getValues("#edgeFilters"),
         filterAllEdges: getValues("#edgeFilters") === ["none"]
@@ -92,8 +98,6 @@ $(document).on('click', ".execute-button", function () {
         contentType: "application/json",
         data: JSON.stringify(reqData),
         success: function(data) {
-            useDefaultLabel = false;
-            useForceLayout = true;
             drawGraph(data, true);
             btn.removeClass('loading');
         }
@@ -161,7 +165,7 @@ $(document).on('change', '.grouping-agg-select', function () {
  * Runs when the DOM is ready
  */
 $(document).ready(function () {
-    cy = buildCytoscape();
+    loadDatabases();
     loadDatabaseProperties();
     $('#vertexFilters').select2();
     $('#edgeFilters').select2();
@@ -172,155 +176,12 @@ $(document).ready(function () {
     addAggFunctionCallback(null);
     let secondAggEntry = addAggFunctionCallback(null);
     secondAggEntry.find('select[name="type"]').val('edge');
+    buildECharts();
 });
 
 /**---------------------------------------------------------------------------------------------------------------------
  * Graph Drawing
  *-------------------------------------------------------------------------------------------------------------------*/
-function buildCytoscape() {
-    return cytoscape({
-        container: document.getElementById('canvas'),
-        style: cytoscape.stylesheet()
-            .selector('node')
-            .css({
-                // define label content and font
-                'content': function (node) {
-
-                    let labelString = getLabel(node, getVertexLabelKey(), useDefaultLabel);
-
-                    let properties = node.data('properties');
-
-                    if (properties['count'] != null) {
-                        labelString += ' (' + properties['count'] + ')';
-                    }
-                    return labelString;
-                },
-                // if the count shall effect the vertex size, set font size accordingly
-                'font-size': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count != null) {
-                            count = count / maxVertexCount;
-                            // surface of vertices is proportional to count
-                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
-                        }
-                    }
-                    return 10;
-                },
-                'text-valign': 'center',
-                'color': 'black',
-                // this function changes the text color according to the background color
-                // unnecessary atm because only light colors can be generated
-                /* function (vertices) {
-                 let label = getLabel(vertices, vertexLabelKey, useDefaultLabel);
-                 let bgColor = colorMap[label];
-                 if (bgColor[0] + bgColor[1] + (bgColor[2] * 0.7) < 300) {
-                 return 'white';
-                 }
-                 return 'black';
-                 },*/
-                // set background color according to color map
-                'background-color': function (node) {
-                    let label = getLabel(node, getVertexLabelKey(), useDefaultLabel);
-                    let color = colorMap[label];
-                    let result = '#';
-                    result += ('0' + color[0].toString(16)).substr(-2);
-                    result += ('0' + color[1].toString(16)).substr(-2);
-                    result += ('0' + color[2].toString(16)).substr(-2);
-                    return result;
-                },
-
-                /* size of vertices can be determined by property count
-                 count specifies that the vertex stands for
-                 1 or more other vertices */
-                'width': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertex is proportional to count
-                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
-                        }
-                    }
-                    return '60px';
-
-                },
-                'height': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertex is proportional to count
-                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
-                        }
-                    }
-                    return '60px';
-                },
-                'text-wrap': 'wrap'
-            })
-            .selector('edge')
-            .css({
-                'curve-style': 'bezier',
-                // layout of edge and edge label
-                'content': function (edge) {
-
-                    if (!$('#showEdgeLabels').is(':checked')) {
-                        return '';
-                    }
-                    let labelString = '';
-                    labelString = getLabel(edge, getEdgeLabelKey(), useDefaultLabel);
-
-                    let properties = edge.data('properties');
-
-                    if (properties['count'] !== null) {
-                        labelString += ' (' + properties['count'] + ')';
-                    }
-
-                    return labelString;
-                },
-                // if the count shall effect the vertex size, set font size accordingly
-                'font-size': function (edge) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = edge.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertices is proportional to count
-                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
-                        }
-                    }
-                    return 10;
-                },
-                'line-color': '#999',
-                // width of edges can be determined by property count
-                // count specifies that the edge represents 1 or more other edges
-                'width': function (edge) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = edge.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxEdgeCount;
-                            return Math.sqrt(count * 1000);
-                        }
-                    }
-                    return 2;
-                },
-                'target-arrow-shape': 'triangle',
-                'target-arrow-color': '#000'
-            })
-            // properties of edges and vertices in special states, e.g. invisible or faded
-            .selector('.faded')
-            .css({
-                'opacity': 0.25,
-                'text-opacity': 0
-            })
-            .selector('.invisible')
-            .css({
-                'opacity': 0,
-                'text-opacity': 0
-            }),
-        ready: cytoReady
-    });
-}
-
 /**
  * function called when the server returns the data
  * @param data graph data
@@ -337,26 +198,42 @@ function drawGraph(data, initial = true) {
 
         // compute maximum count of all vertices, used for scaling the vertex sizes
         maxVertexCount = nodes.reduce((acc, node) => {
-            return Math.max(acc, Number(node['data']['properties']['count']))
+            return Math.max(acc, Number(node.value[2]['properties']['count']))
         }, 0);
-
-        let labels = new Set(nodes.map((node) => {
-            return (!useDefaultLabel && getVertexLabelKey() !== 'label') ?
-                node['data']['properties'][getVertexLabelKey()] : node['data']['label']
-        }));
-
-        // generate random colors for the vertex labels
-        generateRandomColors(labels);
 
         // compute maximum count of all edges, used for scaling the edge sizes
         maxEdgeCount = edges.reduce((acc, edge) => {
-            return Math.max(acc, Number(edge['data']['properties']['count']))
+            return Math.max(acc, Number(edge.value[2]['properties']['count']))
         }, 0);
     }
 
-    cy.elements().remove();
-    cy.add(nodes);
-    cy.add(edges);
+    if (data.type === 'spatialGraph') {
+        if (isLeafletLayoutInUsage) {
+            // purrfect
+        } else {
+            eChartsOption = getEChartsOptions(true);
+            isLeafletLayoutInUsage = true;
+        }
+    } else {
+        if (isLeafletLayoutInUsage) {
+            eChartsOption = getEChartsOptions(false);
+            console.log(eChartsOption);
+            isLeafletLayoutInUsage = false;
+            if (eChartInstance.getModel().getComponent('leaflet')) {
+                let leafletMapInstance = eChartInstance.getModel().getComponent('leaflet').getLeaflet();
+                console.log("Remove leaflet");
+                leafletMapInstance.remove();
+            }
+            let canvasParent = $('#canvas').parent();
+            canvasParent.html('<div id="canvas"></div>');
+            eChartInstance = echarts.init(document.getElementById('canvas'));
+        } else {
+            //purrfect
+        }
+    }
+
+    eChartsOption.series[0].data = nodes;
+    eChartsOption.series[0].links = edges;
 
     if ($('#hideNullGroups').is(':checked')) {
         hideNullGroups();
@@ -366,12 +243,10 @@ function drawGraph(data, initial = true) {
         hideDisconnected();
     }
 
-    let layout = cy.layout(getLayoutConfig(useForceLayout));
-    layout.run()
+    if (eChartsOption && typeof eChartsOption === "object") {
+        eChartInstance.setOption(eChartsOption, true);
+    }
 }
-
-
-
 
 /**
  * Hide all vertices and edges, that have a NULL property.
@@ -580,6 +455,8 @@ function getAggFunctions() {
         returnFunctions[i]['prop'] = argBody.find('select[name="' + type + 'Prop"]').val();
         returnFunctions[i]['dimension'] = argBody.find('select[name="dimension"]').val();
         returnFunctions[i]['periodBound'] = argBody.find('select[name="periodBound"]').val();
+        returnFunctions[i]['useForAdaptiveSize'] = element.find('input[name="useForAdaptiveSize"]')
+            .is(':checked');
     }
     return returnFunctions;
 }

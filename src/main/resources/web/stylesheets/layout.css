@@ -63,7 +63,7 @@ form fieldset {
   max-width: 32px; }
 
 .input-grouping-key .form-select {
-  min-width: 9em; }
+  min-width: 8em; }
 
 .large-canvas {
   width: 100%;
@@ -75,16 +75,11 @@ form fieldset {
     width: content-box;
     height: 200px; }
 
-.CodeMirror {
-  border: .1rem solid #c4c9d3; }
-
 #canvas {
-  min-height: 630px;
+  min-height: 780px;
+  height: 100%;
   width: 100%;
   display: block; }
-
-#cypher-result-table tbody {
-  font-size: 11px; }
 
 .option-tooltip {
   color: #aaaaaa;
@@ -105,9 +100,5 @@ form fieldset {
 
 .select2-container .select2-search--inline {
   margin-top: 0; }
-
-.qtip-content {
-  font-size: 14px;
-  line-height: 1.4; }
 
 /*# sourceMappingURL=layout.css.map */

@@ -19,16 +19,15 @@
  *-------------------*/
 
 /**
- * Map of all possible values for the vertexLabelKey to a color in RGB format.
- * @type {{}}
- */
-let colorMap = {};
-
-/**
  * Buffers the last graph response from the server to improve redrawing speed.
  */
 let bufferedData;
 
+let leafletCenter = [-73.9559308, 40.7747878];
+
+let eChartInstance;
+
+let eChartsOption = {};
 
 /**----------------
  * Callbacks
@@ -40,113 +39,6 @@ let bufferedData;
 $(document).on("change", '.redraw', function() {
     drawGraph(bufferedData, false);
 });
-
-function cytoReady() {
-    window.cy = this;
-    cy.elements().unselectify();
-    /* if a vertex is selected, fade all edges and vertices
-    that are not in direct neighborhood of the vertex */
-    cy.on('tap', 'node', nodeTap);
-    cy.on('tap', 'edge', edgeTap);
-
-    // remove fading by clicking somewhere else
-    cy.on('tap', function (e) {
-        if (e.target === cy) {
-            cy.elements().removeClass('faded');
-        }
-    });
-}
-
-/**
- * Callback for tapping on a node.
- *
- * @param event
- */
-function nodeTap(event) {
-    let node = event.target;
-    let neighborhood = node.neighborhood().add(node);
-
-    cy.elements().addClass('faded');
-    neighborhood.removeClass('faded');
-
-    let ref = node.popperRef(); // used only for positioning
-    let dummyDomEle = document.createElement('div');
-
-    let tip = tippy(dummyDomEle, { // tippy options:
-        // mandatory:
-        trigger: 'manual', // call show() and hide() yourself
-        getReferenceClientRect: ref.getBoundingClientRect,
-
-        content: () => {
-            let content = document.createElement('div');
-
-            let qtipText = '';
-            let label = this.data()['label'];
-
-            if (label != null) {
-                qtipText += '<b>' + label + '</b><br>';
-            }
-            for (let [key, value] of Object.entries(this.data('properties'))) {
-                if (key === 'label') {
-                    qtipText += '<b>' + value + '</b><br>';
-                } else if (key === 'id' || key === 'source' || key === 'target'){
-                    // don't print
-                } else {
-                    qtipText += key + ' : ' + value + '<br>';
-                }
-            }
-            content.innerHTML = qtipText;
-            return content;
-        }
-    });
-    tip.show();
-}
-
-/**
- * Callback for tapping on an edge.
- *
- * @param event
- */
-function edgeTap(event) {
-    let edge = event.target;
-    let nodes = edge.connectedNodes().add(edge);
-    cy.elements().addClass('faded');
-    nodes.removeClass('faded');
-
-    let ref = edge.popperRef(); // used only for positioning
-    let dummyDomEle = document.createElement('div');
-
-    let tip = tippy(dummyDomEle, { // tippy options:
-        // mandatory:
-        trigger: 'manual', // call show() and hide() yourself
-        getReferenceClientRect: ref.getBoundingClientRect,
-
-        // your custom options follow:
-
-        content: () => {
-            let content = document.createElement('div');
-
-            let qtipText = '';
-            let label = this.data()['label'];
-
-            if (label != null) {
-                qtipText += '<b>' + label + '</b><br>';
-            }
-
-            for (let [key, value] of Object.entries(this.data('properties'))) {
-                qtipText += key + ' : ' + value + '<br>';
-            }
-
-
-            content.innerHTML = qtipText;
-
-            return content;
-        }
-    });
-
-    tip.show();
-}
-
 
 /**---------------------
  * Utility Functions
@@ -172,161 +64,141 @@ function getValues(element) {
 }
 
 /**
- * Get the label of the given element, either the default label ('label') or the value of the
- * given property key
- *
- * @param element the element whose label is needed
- * @param key key of the non-default label
- * @param useDefaultLabel boolean specifying if the default label shall be used
- * @returns {string} the label of the element
+ * Builds the eCharts environment.
  */
-function getLabel(element, key, useDefaultLabel) {
-    let label = '';
-    if (!useDefaultLabel && key !== 'label') {
-        label += element.data('properties')[key];
-    } else {
-        label += element.data('label');
+function buildECharts() {
+    eChartInstance = echarts.init(document.getElementById('canvas'));
+
+    eChartsOption = getEChartsOptions(false);
+
+    if (eChartsOption && typeof eChartsOption === "object") {
+        eChartInstance.setOption(eChartsOption);
     }
-    return label;
 }
 
 /**
- * Returns the vertex label which is stored as a property key.
+ * Returns the eCharts option. If parameter {@code useLeaflet} is set to true, a configuration with
+ * enabled Map-View using Leaflet is returned.
  *
- * @returns {string|*} the label
+ * @param useLeaflet the flag to activate the Map-View
+ * @returns the eCharts configuration as object
  */
-function getVertexLabelKey() {
-    let values = getValues("#vertexPropertyKeys");
-    return values.length === 0 ? "label" : values[0];
+function getEChartsOptions(useLeaflet) {
+    let options = {
+        tooltip: {
+            trigger: 'item',
+            triggerOn : 'click',
+        },
+        series: [
+            {
+                name: 'Temporal Graph Explorer',
+                type: 'graph',
+                edgeSymbol: ['circle', 'arrow'],
+                edgeSymbolSize: [4, 10],
+                edgeLabel: {
+                    fontSize: 20,
+                },
+                selectedMode : 'single',
+                lineStyle: {
+                    width: 3,
+                },
+                data: [],
+                links: [],
+                roam: true,
+                label: {
+                    show: true,
+                    position: "right",
+                    formatter: function (params) {
+                        if (params.value[2]['properties']['name']) {
+                            return params.value[2]['properties']['name'];
+                        } else {
+                            return params.value[2]['label'];
+                        }
+                    },
+                },
+                tooltip : {
+                    formatter: function (params) {
+                        let content = document.createElement('div');
+                        let text = '';
+                        let label = params.value[2]['label'];
+
+                        if (label != null) {
+                            text += '<b>' + label + '</b><br>';
+                        }
+                        for (let [key, value] of Object.entries(params.value[2]['properties'])) {
+                            if (key === 'id' || key === 'source' || key === 'target'){
+                                // don't print
+                            } else {
+                                text += key + ' : ' + value + '<br>';
+                            }
+                        }
+                        text += '<br>'
+                        text += '<i>TPGM temporal attributes</i><br>'
+                        text += 'tx_from : ' + params.value[2]['tx_from'] + '<br>';
+                        text += 'tx_to : ' + params.value[2]['tx_to'] + '<br>';
+                        text += 'val_from : ' + params.value[2]['val_from'] + '<br>';
+                        text += 'val_to : ' + params.value[2]['val_to'] + '<br>';
+
+                        content.innerHTML = text;
+                        return content;
+                    }
+                },
+                labelLayout: {
+                    hideOverlap: true,
+                },
+                autoCurveness : 30,
+                emphasis: {
+                    focus: 'adjacency',
+                    lineStyle: {
+                        width: 10
+                    }
+                }
+            },
+        ],
+    };
+
+    if (useLeaflet) {
+        options.leaflet = {
+            title: {
+                text: "Graph Demo",
+                subtext: "Test graph on maps",
+                left: "center",
+            },
+            center: leafletCenter,
+            zoom: 12,
+            roam: true,
+            tiles: [
+                {
+                    label: "OpenStreetMap",
+                    urlTemplate:
+                        "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+                    options: {
+                        attribution:
+                            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>, Tiles courtesy of <a href="http://hot.openstreetmap.org/" target="_blank">Humanitarian OpenStreetMap Team</a>',
+                    },
+                },
+            ],
+        };
+
+        options.series[0].coordinateSystem = "leaflet";
+    } else {
+        options.series[0].layout = "force";
+        options.series[0].force = {
+            // initLayout: 'circular'
+            // gravity: 0
+            repulsion: 60,
+        };
+
+    }
+    return options;
 }
 
-/**
- * Returns the edge label which is stored as a property key.
- *
- * @returns {string|*} the label
- */
-function getEdgeLabelKey() {
-    let values = getValues("#edgePropertyKeys");
-    return values.length === 0 ? "label" : values[0];
-}
-
-/**
- * Generate a random color for each label.
- *
- * @param labels
- */
-function generateRandomColors(labels) {
-    colorMap = {};
-    labels.forEach(function (label) {
-        let r = 0;
-        let g = 0;
-        let b = 0;
-        while (r + g + b < 382) {
-            r = Math.floor((Math.random() * 255));
-            g = Math.floor((Math.random() * 255));
-            b = Math.floor((Math.random() * 255));
+function loadDatabases() {
+    $.get('http://localhost:2342/graphs', function(response) {
+        let options = '';
+        for (i = 0; i < response.length ; i++) {
+            options += '<option value="' + response[i] + '">' + response[i] + '</option>';
         }
-        colorMap[label] = [r, g, b];
-    });
-}
-
-/**
- * Get the layout for cytoscape
- *
- * @param useForceDirectedLayout true, if 'cose' layout (force directed) should be used
- * @returns a cytoscape layout config
- */
-function getLayoutConfig(useForceDirectedLayout) {
-// options for the force layout
-    let cose = {
-        name: 'cose',
-
-        // called on `layoutready`
-        ready: function () {
-        },
-
-        // called on `layoutstop`
-        stop: function () {
-        },
-
-        // whether to animate while running the layout
-        animate: true,
-
-        // number of iterations between consecutive screen positions update (0 ->
-        // only updated on the end)
-        refresh: 4,
-
-        // whether to fit the network view after when done
-        fit: true,
-
-        // padding on fit
-        padding: 30,
-
-        // constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
-        boundingBox: undefined,
-
-        // whether to randomize node positions on the beginning
-        randomize: true,
-
-        // whether to use the JS console to print debug messages
-        debug: false,
-
-        // node repulsion (non overlapping) multiplier
-        nodeRepulsion: 8000000,
-
-        // node repulsion (overlapping) multiplier
-        nodeOverlap: 10,
-
-        // ideal edge (non nested) length
-        idealEdgeLength: 1,
-
-        // divisor to compute edge forces
-        edgeElasticity: 100,
-
-        // nesting factor (multiplier) to compute ideal edge length for nested edges
-        nestingFactor: 5,
-
-        // gravity force (constant)
-        gravity: 100,
-
-        // maximum number of iterations to perform
-        numIter: 50,
-
-        // initial temperature (maximum node displacement)
-        initialTemp: 200,
-
-        // cooling factor (how the temperature is reduced between consecutive iterations
-        coolingFactor: 0.95,
-
-        // lower temperature threshold (below this point the layout will end)
-        minTemp: 1.0
-    };
-
-    let radialRandom = {
-        name: 'preset',
-        positions: function() {
-
-            let r = Math.random() * 1000001;
-            let theta = Math.random() * 2 * (Math.PI);
-            return {
-                x: Math.sqrt(r) * Math.sin(theta),
-                y: Math.sqrt(r) * Math.cos(theta)
-            };
-        },
-        zoom: undefined,
-        pan: undefined,
-        fit: true,
-        padding: 30,
-        animate: false,
-        animationDuration: 500,
-        animationEasing: undefined,
-        ready: undefined,
-        stop: undefined
-    };
-
-    if (useForceDirectedLayout) {
-        return cose;
-    } else {
-        return radialRandom;
-    }
+        $('#databaseName').html(options);
+    }, "json");
 }

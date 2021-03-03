@@ -21,18 +21,22 @@
     <link rel="stylesheet" type="text/css" href="../stylesheets/spectre.min.css" />
     <link rel="stylesheet" type="text/css" href="../stylesheets/spectre-exp.min.css" />
     <link rel="stylesheet" type="text/css" href="../stylesheets/spectre-icons.min.css" />
-    <link rel="stylesheet" type="text/css" href="../stylesheets/jquery.qtip.css">
     <link rel="stylesheet" type="text/css" href="../stylesheets/select2.min.css">
+    <link rel="stylesheet" type="text/css" href="../stylesheets/leaflet.css"/>
     <link rel="stylesheet" type="text/css" href="../stylesheets/layout.css">
 
     <script src="../javascript/jquery/jquery-1.11.3.min.js"></script>
-    <script src="../javascript/cytoscape/3.15.2/cytoscape.min.js"></script>
-    <script src="https://unpkg.com/@popperjs/core@2"></script>
+
+    <!-- cytoscape graph drawing -->
+    <script src="../javascript/cytoscape/cytoscape.min.js"></script>
+    <script src="../javascript/cytoscape/popper.js"></script>
     <script src="../javascript/cytoscape/cytoscape-popper.js"></script>
-    <script src="https://unpkg.com/tippy.js@6"></script>
-    <script src="../javascript/cytoscape/dagre.js"></script>
-    <script src="../javascript/cytoscape/cytoscape-dagre.js"></script>
+    <script src="../javascript/cytoscape/https://unpkg.com/tippy.js@6"></script>
     <script src="../javascript/select2/select2.full.min.js"></script>
+    <!-- eCharts graph drawing -->
+    <script type="text/javascript" src="../javascript/eCharts/echarts.min.js"></script>
+    <script src="../javascript/leaflet/leaflet.js"></script>
+    <script src="../javascript/eCharts/echarts-leaflet.js"></script>
 
     <script src="../javascript/common.js"></script>
     <script src="../javascript/keyedgrouping.js"></script>
@@ -42,7 +46,7 @@
     <section class="container">
         <nav class="navbar">
             <section class="navbar-section">
-                <a href="/">
+                <a href="https://www.uni-leipzig.de/en/">
                     <img src="../images/ul-logo.png" class="navbar-logo small" alt="University of Leipzig">
                 </a>
                 <a href="snapshot.html" class="btn btn-link">Snapshot</a>
@@ -50,12 +54,12 @@
                 <a href="keyedgrouping.html" class="btn btn-link active">Temporal Grouping</a>
             </section>
             <section class="navbar-center">
-                <a href="/">
+                <a href="keyedgrouping.html">
                     <img src="../images/tge-logo-small.png" class="navbar-logo" alt="Temporal Graph Explorer">
                 </a>
             </section>
             <section class="navbar-section">
-                <a href="/">
+                <a href="https://github.com/dbs-leipzig/gradoop">
                     <img src="../images/gradoop.svg" class="navbar-logo small" alt="Gradoop">
                 </a>
             </section>
@@ -83,8 +87,8 @@
                                     <label class="form-label" for="databaseName">Graph</label>
                                     <div class="input-group">
                                         <select class="form-select" id="databaseName" name="databaseName" style="width:50%">
-                                            <option value="Example">Example</option>
-                                            <option value="Citibike-2018-Sampled">Citibike 2018 (1%)</option>
+                                            <option value="Example" data-spatial="false">Example</option>
+                                            <option value="Citibike-2018-Sampled" data-spatial="true">Citibike 2018 (1%)</option>
                                         </select>
                                         <button id="showWholeGraph" class="btn input-group-btn">Show the whole graph</button>
                                     </div>
@@ -299,6 +303,11 @@
                                                 </div>
                                             </div>
                                             <button class="del-agg-button btn btn-action input-group-btn"><i class="icon icon-minus"></i></button>
+                                            &nbsp;
+                                            <label class="form-switch">
+                                                <input type="checkbox" name="useForAdaptiveSize" value="false">
+                                                <i class="form-icon"></i> Use for element size.
+                                            </label>
                                         </div>
                                     </div>
                                     <button class="add-agg-button btn btn-action"><i class="icon icon-plus"></i></button>
@@ -313,11 +322,11 @@
                 </div>
             </div>
             <div class="column col-8">
-                <div class="card">
-                    <div class="card-body">
+                <div class="panel">
+                    <div class="panel-body">
                         <div id="canvas"></div>
                     </div>
-                    <div class="card-footer">
+                    <div class="panel-footer">
                         <h5>View options</h5>
                         <label class="form-switch" for="showEdgeLabels">
                             <input type="checkbox" id="showEdgeLabels" name="showEdgeLabels" value="true" class="redraw">
@@ -338,6 +347,7 @@
                         </label>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>

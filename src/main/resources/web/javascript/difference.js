@@ -1,36 +1,67 @@
+/*
+ * Copyright © 2014 - 2021 Leipzig University (Database Research Group)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 /**---------------------------------------------------------------------------------------------------------------------
  * Global Values
  *-------------------------------------------------------------------------------------------------------------------*/
-/**
- * Map of all possible values for the vertexLabelKey to a color in RGB format.
- * @type {{}}
- */
-let diffColorMap = { '-1' : '#f4451f', '0' : '#999', '1' : '#73db46'};
 
-var base_dc = 0.03; //TODO: derive a formula
-var lon_ext = 1;  //extent in lng
-var lonmin = -74; //90
-var latmin = 40.6; //0
-var lon_cor = lon_ext*base_dc;
-var lat_ext = lon_ext; //extent in lat
-var lonmax = lonmin + lon_ext;
-var lonmid = (lonmin+lonmax)/2;
-var lonmax2 = lonmax + lon_cor;
-var latmax = latmin + lat_ext;
-var latmid = (latmin+latmax)/2;
-var scale = 100;
+/**
+ * Buffers the last metadata response from the server to improve redrawing speed.
+ */
+let bufferedMetaData = [];
+
+let isLeafletLayoutInUsage = false;
 
 /**
  * Initialize the page
  * */
 $(document).ready(function(){
-    buildCytoscape();
-    $('select').select2();
+    loadDatabases();
+    loadDatabaseProperties();
+    buildECharts();
 });
 
 /**---------------------------------------------------------------------------------------------------------------------
  * Callbacks
  *-------------------------------------------------------------------------------------------------------------------*/
+/**
+ * Reload the database properties whenever the database selection is changed
+ */
+$(document).on("change", "#databaseName", loadDatabaseProperties);
+
+/**
+ * Activate/deactivate the timestamp inputs depending on the selected predicate.
+ */
+$(document).on('change', '.predicate-select', function () {
+    let dropdown = $(this);
+
+    let tsInput1 = dropdown.parents('.snapshot').find('.input-timestamp-1');
+    tsInput1.removeAttr('disabled');
+    let tsInput2 = dropdown.parents('.snapshot').find('.input-timestamp-2');
+    tsInput2.removeAttr('disabled');
+
+    switch (dropdown.val()) {
+        case 'all':
+            tsInput1.attr('disabled', 'disabled');
+            tsInput2.attr('disabled', 'disabled');
+            break;
+        case 'asOf':
+            tsInput2.attr('disabled', 'disabled');
+            break;
+    }
+});
 /**
  * When the 'Execute' button is clicked, construct a request and send it to the server
  */
@@ -55,8 +86,6 @@ $(document).on('click', ".execute-button", function () {
         contentType: "application/json",
         data: JSON.stringify(reqData),
         success: function(data) {
-            useDefaultLabel = false;
-            useForceLayout = true;
             drawGraph(data, true);
             btn.removeClass('loading');
         }
@@ -66,121 +95,7 @@ $(document).on('click', ".execute-button", function () {
 /**---------------------------------------------------------------------------------------------------------------------
  * Graph Drawing
  *-------------------------------------------------------------------------------------------------------------------*/
-function buildCytoscape() {
-    return cytoscape({
-        container: document.getElementById('canvas'),
-        style: cytoscape.stylesheet()
-            .selector('node')
-            .css({
-                // define label content and font
-                'content': function (node) {
-                    return getLabel(node, getVertexLabelKey(), useDefaultLabel);
-                },
-                // if the count shall effect the vertex size, set font size accordingly
-                'font-size': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count != null) {
-                            count = count / maxVertexCount;
-                            // surface of vertices is proportional to count
-                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
-                        }
-                    }
-                    return 10;
-                },
-                'text-valign': 'center',
-                'color': 'black',
-                // set background color according to color map
-                'background-color': function (node) {
-                    let diff = node.data('properties')['_diff'];
-                    return  diffColorMap[diff];
-                },
 
-                /* size of vertices can be determined by property count
-                 count specifies that the vertex stands for
-                 1 or more other vertices */
-                'width': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertex is proportional to count
-                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
-                        }
-                    }
-                    return '60px';
-
-                },
-                'height': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertex is proportional to count
-                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
-                        }
-                    }
-                    return '60px';
-                },
-                'text-wrap': 'wrap'
-            })
-            .selector('edge')
-            .css({
-                'curve-style': 'bezier',
-                // layout of edge and edge label
-                'content': function (edge) {
-
-                    if (!$('#showEdgeLabels').is(':checked')) {
-                        return '';
-                    }
-
-                    return getLabel(edge, getEdgeLabelKey(), useDefaultLabel);
-                },
-                // if the count shall effect the vertex size, set font size accordingly
-                'font-size': function (node) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertices is proportional to count
-                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
-                        }
-                    }
-                    return 10;
-                },
-                'line-color': function (node) {
-                    let diff = node.data('properties')['_diff'];
-                    return  diffColorMap[diff];
-                },
-                // width of edges can be determined by property count
-                // count specifies that the edge represents 1 or more other edges
-                'width': function (edge) {
-                    if ($('#showCountAsSize').is(':checked')) {
-                        let count = edge.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxEdgeCount;
-                            return Math.sqrt(count * 1000);
-                        }
-                    }
-                    return 2;
-                },
-                'target-arrow-shape': 'triangle',
-                'target-arrow-color': '#000'
-            })
-            // properties of edges and vertices in special states, e.g. invisible or faded
-            .selector('.faded')
-            .css({
-                'opacity': 0.25,
-                'text-opacity': 0
-            })
-            .selector('.invisible')
-            .css({
-                'opacity': 0,
-                'text-opacity': 0
-            }),
-        ready: cytoReady
-    });
-}
 /**
  * Function called when the server returns the data
  *
@@ -197,42 +112,60 @@ function drawGraph(data, initial = true) {
         bufferedData = data;
     }
 
-    cy.elements().remove();
-    cy.add(nodes);
-
-    cy.nodes().positions(function( node, i ){
-        return lnglat2xy(node.data('properties')['long'], node.data('properties')['lat']);
-    });
-
-    cy.add(edges);
-
-    if ($('#hideNullGroups').is(':checked')) {
-        hideNullGroups();
+    if (data.type === 'spatialGraph') {
+        if (isLeafletLayoutInUsage) {
+            // purrfect
+        } else {
+            eChartsOption = getEChartsOptions(true);
+            isLeafletLayoutInUsage = true;
+        }
+    } else {
+        if (isLeafletLayoutInUsage) {
+            eChartsOption = getEChartsOptions(false);
+            console.log(eChartsOption);
+            isLeafletLayoutInUsage = false;
+            if (eChartInstance.getModel().getComponent('leaflet')) {
+                let leafletMapInstance = eChartInstance.getModel().getComponent('leaflet').getLeaflet();
+                console.log("Remove leaflet");
+                leafletMapInstance.remove();
+            }
+            let canvasParent = $('#canvas').parent();
+            canvasParent.html('<div id="canvas"></div>');
+            eChartInstance = echarts.init(document.getElementById('canvas'));
+        } else {
+            //purrfect
+        }
     }
 
-    if ($('#hideDisconnected').is(':checked')) {
-        hideDisconnected();
-    }
+    eChartsOption.series[0].data = nodes;
+    eChartsOption.series[0].links = edges;
 
-    let layout = cy.layout(getLayoutConfig(useForceLayout));
-    layout.run();
+    if (eChartsOption && typeof eChartsOption === "object") {
+        eChartInstance.setOption(eChartsOption, true);
+    }
 }
 
-/**---------------------------------------------------------------------------------------------------------------------
- * Utility Functions
- *-------------------------------------------------------------------------------------------------------------------*/
-
-function lnglat2xy(lon, lat) {
-    let can = $("#canvas");
-    let w = can.width() * scale;
-
-    let h = can.height() * scale;
-    let L = lonmax2-lonmin;
-
-    let B = latmax-latmin;
-
-    let y = (B-(lat-latmin))*h/B;
-    let x = (lon-lonmin)*w/L;
-
-    return {x: x, y: y};
+/**
+ * Initialize the database menu according to the selected database
+ */
+function loadDatabaseProperties() {
+    function calcLeafLetCenter(spatialData) {
+        if (spatialData['min_lat'] && spatialData['min_long'] && spatialData['max_lat'] &&
+            spatialData['max_long']) {
+            let longCenter = (spatialData['min_long'] + spatialData['max_long']) / 2;
+            let latCenter = (spatialData['min_lat'] + spatialData['max_lat']) / 2;
+            leafletCenter = [longCenter, latCenter];
+        }
+    }
+    let databaseName = $('#databaseName').val();
+    if (bufferedMetaData[databaseName]) {
+        let spatialData = bufferedMetaData[databaseName]['spatialData'];
+        calcLeafLetCenter(spatialData);
+    } else {
+        $.post('http://localhost:2342/keys/' + databaseName, function(response) {
+            bufferedMetaData[databaseName] = response;
+            let spatialData = bufferedMetaData[databaseName]['spatialData'];
+            calcLeafLetCenter(spatialData);
+        }, "json");
+    }
 }
