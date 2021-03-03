@@ -1,3 +1,0 @@
-v;Person;decade:int,eye_color:string,gender:string,hair_color:string,height:int,height_group:int,region:string,weight:int,weight_group:int,working_field:string
-e;knows;
-g;DB;

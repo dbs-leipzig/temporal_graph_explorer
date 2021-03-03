@@ -13,7 +13,7 @@ body {
 
 .page-header {
   padding: 1rem .5rem;
-  height: 60px;
+  height: 100px;
   position: fixed;
   top: 0;
   width: 100%;
@@ -21,10 +21,14 @@ body {
   background-color: #f8f9fa;
   border-bottom: 1px solid #eeeeee; }
   .page-header .navbar-logo {
-    height: 30px; }
+    height: 80px; }
+    .page-header .navbar-logo #gradoop {
+      height: 50px; }
+  .page-header .navbar-logo.small {
+    height: 50px; }
 
 .navbar-spacer {
-  min-height: 80px; }
+  min-height: 110px; }
 
 footer {
   padding-top: 20px;
@@ -52,6 +56,15 @@ form fieldset {
   form fieldset .header {
     font-size: 1.7rem; }
 
+.del-key-button {
+  max-width: 32px; }
+
+.del-agg-button {
+  max-width: 32px; }
+
+.input-grouping-key .form-select {
+  min-width: 8em; }
+
 .large-canvas {
   width: 100%;
   margin: auto;
@@ -62,16 +75,11 @@ form fieldset {
     width: content-box;
     height: 200px; }
 
-.CodeMirror {
-  border: .1rem solid #c4c9d3; }
-
 #canvas {
-  min-height: 630px;
+  min-height: 780px;
+  height: 100%;
   width: 100%;
   display: block; }
-
-#cypher-result-table tbody {
-  font-size: 11px; }
 
 .option-tooltip {
   color: #aaaaaa;
@@ -92,9 +100,5 @@ form fieldset {
 
 .select2-container .select2-search--inline {
   margin-top: 0; }
-
-.qtip-content {
-  font-size: 14px;
-  line-height: 1.4; }
 
 /*# sourceMappingURL=layout.css.map */

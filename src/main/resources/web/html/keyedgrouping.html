@@ -1,0 +1,371 @@
+<!--
+ * Copyright © 2014 - 2021 Leipzig University (Database Research Group)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Temporal Graph Explorer | Temporal Grouping</title>
+    <link rel="stylesheet" type="text/css" href="../stylesheets/spectre.min.css" />
+    <link rel="stylesheet" type="text/css" href="../stylesheets/spectre-exp.min.css" />
+    <link rel="stylesheet" type="text/css" href="../stylesheets/spectre-icons.min.css" />
+    <link rel="stylesheet" type="text/css" href="../stylesheets/select2.min.css">
+    <link rel="stylesheet" type="text/css" href="../stylesheets/leaflet.css"/>
+    <link rel="stylesheet" type="text/css" href="../stylesheets/layout.css">
+
+    <script src="../javascript/jquery/jquery-1.11.3.min.js"></script>
+
+    <!-- cytoscape graph drawing -->
+    <script src="../javascript/cytoscape/cytoscape.min.js"></script>
+    <script src="../javascript/cytoscape/popper.js"></script>
+    <script src="../javascript/cytoscape/cytoscape-popper.js"></script>
+    <script src="../javascript/cytoscape/https://unpkg.com/tippy.js@6"></script>
+    <script src="../javascript/select2/select2.full.min.js"></script>
+    <!-- eCharts graph drawing -->
+    <script type="text/javascript" src="../javascript/eCharts/echarts.min.js"></script>
+    <script src="../javascript/leaflet/leaflet.js"></script>
+    <script src="../javascript/eCharts/echarts-leaflet.js"></script>
+
+    <script src="../javascript/common.js"></script>
+    <script src="../javascript/keyedgrouping.js"></script>
+</head>
+<body>
+<header class="page-header">
+    <section class="container">
+        <nav class="navbar">
+            <section class="navbar-section">
+                <a href="https://www.uni-leipzig.de/en/">
+                    <img src="../images/ul-logo.png" class="navbar-logo small" alt="University of Leipzig">
+                </a>
+                <a href="snapshot.html" class="btn btn-link">Snapshot</a>
+                <a href="difference.html" class="btn btn-link">Difference</a>
+                <a href="keyedgrouping.html" class="btn btn-link active">Temporal Grouping</a>
+            </section>
+            <section class="navbar-center">
+                <a href="keyedgrouping.html">
+                    <img src="../images/tge-logo-small.png" class="navbar-logo" alt="Temporal Graph Explorer">
+                </a>
+            </section>
+            <section class="navbar-section">
+                <a href="https://github.com/dbs-leipzig/gradoop">
+                    <img src="../images/gradoop.svg" class="navbar-logo small" alt="Gradoop">
+                </a>
+            </section>
+        </nav>
+    </section>
+</header>
+<section class="navbar-spacer">&nbsp;</section>
+
+<div class="content-wrapper">
+    <div class="container">
+        <div class="columns">
+            <div class="column col-4">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Temporal Grouping</div>
+                    </div>
+                    <div class="panel-body">
+                        <form id="grouping-query-form">
+                            <fieldset>
+                                <div class="header">
+                                    Input Parameters
+                                    <hr>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="databaseName">Graph</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="databaseName" name="databaseName" style="width:50%">
+                                            <option value="Example" data-spatial="false">Example</option>
+                                            <option value="Citibike-2018-Sampled" data-spatial="true">Citibike 2018 (1%)</option>
+                                        </select>
+                                        <button id="showWholeGraph" class="btn input-group-btn">Show the whole graph</button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="vertexFilters">
+                                        Vertex Label Filter
+                                        <span class="option-tooltip tooltip tooltip-right" data-tooltip="(Optional) Specify a set of labels to filter the vertices used for grouping.">?</span>
+                                    </label>
+                                    <select id="vertexFilters" name="vertexFilters" multiple style="width:100%">
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="edgeFilters">
+                                        Edge Label Filter
+                                        <span class="option-tooltip tooltip tooltip-right" data-tooltip="(Optional) Specify a set of labels to filter the edges used for grouping.">?</span>
+
+                                    </label>
+                                    <select class="form-select" id="edgeFilters" name="edgeFilters" style="width:100%" multiple>
+                                    </select>
+                                </div>
+                            </fieldset>
+
+                            <fieldset>
+                                <div class="header">
+                                    Grouping Parameters
+                                    <hr>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="key-function-list">
+                                        Key functions
+                                        <span class="option-tooltip tooltip tooltip-right" data-tooltip="Key functions are used to build vertex and edge groups.">?</span>
+                                    </label>
+                                    <div id="key-function-list">
+                                        <div class="input-group input-grouping-key hide" id="template-key-form" style="margin-bottom: 5px;">
+                                            <select name="keyFunction" class="form-select grouping-key-select">
+                                                <option value="label">Label</option>
+                                                <option value="property">Property</option>
+                                                <option value="timestamp">Timestamp</option>
+                                                <option value="interval">Interval</option>
+                                                <option value="duration">Duration</option>
+                                            </select>
+                                            <select name="type" class="form-select">
+                                                <option value="vertex">Vertex</option>
+                                                <option value="edge">Edge</option>
+                                            </select>
+                                            <div class="key-form-bodies form-bodies input-group">
+
+                                                <div class="input-group body-label">
+                                                    <!-- label does not need an attribute -->
+                                                </div>
+
+                                                <div class="input-group body-property hide">
+                                                    <select name="vertexLabelSpec" class="form-select label-spec-select">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="edgeLabelSpec" class="form-select label-spec-select hide">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="vertexProp" class="form-select prop-select">
+                                                        <option value="default">Property</option>
+                                                        <option value="dummyProp">dummyProperty</option>
+                                                    </select>
+                                                    <select name="edgeProp" class="form-select prop-select hide">
+                                                        <option value="default">Property</option>
+                                                        <option value="dummyProp">dummyProperty</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="input-group body-timestamp hide">
+                                                    <select name="vertexLabelSpec" class="form-select label-spec-select">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="edgeLabelSpec" class="form-select label-spec-select hide">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="dimension" class="form-select">
+                                                        <option value="VALID_TIME">Valid time</option>
+                                                        <option value="TRANSACTION_TIME">Transaction time</option>
+                                                    </select>
+                                                    <select name="periodBound" class="form-select">
+                                                        <option value="FROM">From (Start)</option>
+                                                        <option value="TO">To (End)</option>
+                                                    </select>
+                                                    <select name="field" class="form-select">
+                                                        <option value="no">Temporal field? (No)</option>
+                                                        <option value="year">Year</option>
+                                                        <option value="month">Month</option>
+                                                        <option value="weekOfYear">Week of Year</option>
+                                                        <option value="weekOfMonth">Week of Month</option>
+                                                        <option value="dayOfMonth">Day of Month</option>
+                                                        <option value="dayOfYear">Day of Year</option>
+                                                        <option value="hour">Hour</option>
+                                                        <option value="minute">Minute</option>
+                                                        <option value="second">Second</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="input-group body-interval hide">
+                                                    <select name="vertexLabelSpec" class="form-select label-spec-select">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="edgeLabelSpec" class="form-select label-spec-select hide">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="dimension" class="form-select">
+                                                        <option value="VALID_TIME">Valid time</option>
+                                                        <option value="TRANSACTION_TIME">Transaction time</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="input-group body-duration hide">
+                                                    <select name="vertexLabelSpec" class="form-select label-spec-select">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="edgeLabelSpec" class="form-select label-spec-select hide">
+                                                        <option value="no">Label specific? (No)</option>
+                                                        <option value="dummyLabel">dummyLabel</option>
+                                                    </select>
+                                                    <select name="dimension" class="form-select">
+                                                        <option value="VALID_TIME">Valid time</option>
+                                                        <option value="TRANSACTION_TIME">Transaction time</option>
+                                                    </select>
+                                                    <select name="unit" class="form-select">
+                                                        <option value="no">Unit? (No)</option>
+                                                        <option value="DECADES">Decades</option>
+                                                        <option value="YEARS">Years</option>
+                                                        <option value="MONTHS">Months</option>
+                                                        <option value="WEEKS">Weeks</option>
+                                                        <option value="DAYS">Days</option>
+                                                        <option value="HOURS">Hours</option>
+                                                        <option value="MINUTES">Minutes</option>
+                                                        <option value="SECONDS">Seconds</option>
+                                                        <option value="MILLISECONDS">Milliseconds</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <button class="del-key-button btn btn-action input-group-btn"><i class="icon icon-minus"></i></button>
+                                        </div>
+
+                                    </div>
+                                    <button class="add-key-button btn btn-action"><i class="icon icon-plus"></i></button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="agg-function-list">
+                                        Aggregation Functions
+                                        <span class="option-tooltip tooltip tooltip-right" data-tooltip="Aggregation functions are evaluated for each resulting vertex and edge group.">?</span>
+                                    </label>
+                                    <div id="agg-function-list">
+                                        <div class="input-group input-aggregate-func hide" id="template-agg-form" style="margin-bottom: 5px;">
+                                            <select name="aggFunction" class="form-select grouping-agg-select">
+                                                <option value="count" type="count">Count()</option>
+                                                <option value="minProp" type="prop">MinProperty()</option>
+                                                <option value="maxProp" type="prop">MaxProperty()</option>
+                                                <option value="avgProp" type="prop">AvgProperty()</option>
+                                                <option value="sumProp" type="prop">SumProperty()</option>
+                                                <option value="minTime" type="time">MinTime()</option>
+                                                <option value="maxTime" type="time">MaxTime()</option>
+                                                <option value="minDuration" type="duration">MinDuration()</option>
+                                                <option value="maxDuration" type="duration">MaxDuration()</option>
+                                                <option value="avgDuration" type="duration">AvgDuration()</option>
+                                            </select>
+                                            <select name="type" class="form-select">
+                                                <option value="vertex">Vertex</option>
+                                                <option value="edge">Edge</option>
+                                            </select>
+                                            <div class="agg-form-bodies form-bodies input-group">
+
+                                                <div class="input-group body-count">
+                                                    <!-- count does not need an attribute -->
+                                                </div>
+
+                                                <div class="input-group body-prop hide">
+                                                    <select name="vertexProp" class="form-select prop-select">
+                                                        <option value="default">Property</option>
+                                                        <option value="dummyProp">dummyProperty</option>
+                                                    </select>
+                                                    <select name="edgeProp" class="form-select prop-select hide">
+                                                        <option value="default">Property</option>
+                                                        <option value="dummyProp">dummyProperty</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="input-group body-time hide">
+                                                    <select name="dimension" class="form-select">
+                                                        <option value="VALID_TIME">Valid time</option>
+                                                        <option value="TRANSACTION_TIME">Transaction time</option>
+                                                    </select>
+                                                    <select name="periodBound" class="form-select">
+                                                        <option value="FROM">From (Start)</option>
+                                                        <option value="TO">To (End)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="input-group body-duration hide">
+                                                    <select name="dimension" class="form-select">
+                                                        <option value="VALID_TIME">Valid time</option>
+                                                        <option value="TRANSACTION_TIME">Transaction time</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <button class="del-agg-button btn btn-action input-group-btn"><i class="icon icon-minus"></i></button>
+                                            &nbsp;
+                                            <label class="form-switch">
+                                                <input type="checkbox" name="useForAdaptiveSize" value="false">
+                                                <i class="form-icon"></i> Use for element size.
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <button class="add-agg-button btn btn-action"><i class="icon icon-plus"></i></button>
+                                </div>
+
+                            </fieldset>
+                        </form>
+                    </div>
+                    <div class="panel-footer">
+                        <button class="execute-button btn btn-primary btn-block">Execute</button>
+                    </div>
+                </div>
+            </div>
+            <div class="column col-8">
+                <div class="panel">
+                    <div class="panel-body">
+                        <div id="canvas"></div>
+                    </div>
+                    <div class="panel-footer">
+                        <h5>View options</h5>
+                        <label class="form-switch" for="showEdgeLabels">
+                            <input type="checkbox" id="showEdgeLabels" name="showEdgeLabels" value="true" class="redraw">
+                            <i class="form-icon"></i> Show Edge Labels
+                        </label>
+                        <label class="form-switch" for="showCountAsSize">
+                            <input type="checkbox" id="showCountAsSize" name="showCountAsSize" value="true" class="redraw">
+                            <i class="form-icon"></i> Adaptive element size
+                            <span class="option-tooltip tooltip tooltip-top" data-tooltip="Requires count aggregate functions.">?</span>
+                        </label>
+                        <label class="form-switch" for="hideNullGroups">
+                            <input type="checkbox" id="hideNullGroups" name="hideNullGroups" value="true" class="redraw">
+                            <i class="form-icon"></i> Hide NULL groups
+                        </label>
+                        <label class="form-switch" for="hideDisconnected">
+                            <input type="checkbox" id="hideDisconnected" name="hideDisconnected" value="true" class="redraw">
+                            <i class="form-icon"></i> Hide disconnected vertices
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div class="container">
+        <p>
+            <a href="https://github.com/ChrizZz110/temporal_graph_explorer"> Github </a>
+            |
+            Gradoop Version 0.5.1
+            |
+            Temporal Graph Explorer Version 0.2.0
+        </p>
+        <p>
+            Licensed under the <a href="https://github.com/ChrizZz110/temporal_graph_explorer/blob/master/LICENSE" >Apache 2.0 License</a>.
+        </p>
+    </div>
+</footer>
+</body>
+</html>

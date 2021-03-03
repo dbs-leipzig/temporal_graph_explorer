@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 - 2018 Leipzig University (Database Research Group)
+ * Copyright © 2014 - 2021 Leipzig University (Database Research Group)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.gradoop.demo.server;
 
 import com.sun.jersey.api.container.grizzly2.GrizzlyServerFactory;
@@ -44,7 +43,7 @@ public class Server {
   /**
    * Path to demo application
    */
-  private static final String APPLICATION_PATH = "gradoop/html/grouping.html";
+  private static final String APPLICATION_PATH = "gradoop/html/snapshot.html";
 
   /**
    * Creates the base URI.
@@ -52,6 +51,20 @@ public class Server {
    */
   private static URI getBaseURI() {
     return UriBuilder.fromUri("http://localhost/").port(PORT).build();
+  }
+
+  /**
+   * Main method. Run this to start the server.
+   *
+   * @param args command line parameters
+   * @throws IOException if server creation fails
+   */
+  public static void main(String[] args) throws Exception {
+    HttpServer httpServer = startServer();
+    System.out.printf("org.gradoop.demos.grouping.server started at %s%s%n" +
+      "Press any key to stop it.%n", getBaseURI(), APPLICATION_PATH);
+    System.in.read();
+    httpServer.stop();
   }
 
   /**
@@ -70,19 +83,5 @@ public class Server {
     server.getServerConfiguration().addHttpHandler( staticHandler, "/gradoop" );
 
     return server;
-  }
-
-  /**
-   * Main method. Run this to start the server.
-   *
-   * @param args command line parameters
-   * @throws IOException if server creation fails
-   */
-  public static void main(String[] args) throws IOException {
-    HttpServer httpServer = startServer();
-    System.out.printf("org.gradoop.demos.grouping.server started at %s%s%n" +
-      "Press any key to stop it.%n", getBaseURI(), APPLICATION_PATH);
-    System.in.read();
-    httpServer.stop();
   }
 }
