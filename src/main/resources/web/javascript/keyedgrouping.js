@@ -35,6 +35,8 @@ let maxEdgeCount = 0;
  */
 let isLeafletLayoutInUsage = false;
 
+let isEChartsInUsage = true;
+
 /**---------------------------------------------------------------------------------------------------------------------
  * Callbacks
  *-------------------------------------------------------------------------------------------------------------------*/
@@ -182,12 +184,45 @@ $(document).ready(function () {
 /**---------------------------------------------------------------------------------------------------------------------
  * Graph Drawing
  *-------------------------------------------------------------------------------------------------------------------*/
+
+function drawGraph(data, initial = true) {
+    if (data.type === 'spatialGraph') {
+        if (isEChartsInUsage) {
+            // purrfect
+        } else {
+            destroyCytoscape();
+            buildECharts();
+        }
+        drawEChartsGraph(data, initial);
+    } else {
+        if (isEChartsInUsage) {
+            destroyECharts();
+            buildCytoscape();
+        } else {
+            // purrfect
+        }
+        drawCytoscapeGraph(data, initial);
+    }
+}
+
+function destroyCytoscape() {
+    cytoscapeInstance.destroy();
+}
+
+function destroyECharts() {
+    eChartInstance.clear();
+    eChartInstance.dispose();
+    eChartInstance = null;
+    let canvasParent = $('#canvas').parent();
+    canvasParent.html('<div id="canvas"></div>');
+}
+
 /**
  * function called when the server returns the data
  * @param data graph data
  * @param initial indicates whether the data is drawn initially
  */
-function drawGraph(data, initial = true) {
+function drawEChartsGraph(data, initial = true) {
     // lists of vertices and edges
     let nodes = data.nodes;
     let edges = data.edges;
@@ -217,11 +252,9 @@ function drawGraph(data, initial = true) {
     } else {
         if (isLeafletLayoutInUsage) {
             eChartsOption = getEChartsOptions(false);
-            console.log(eChartsOption);
             isLeafletLayoutInUsage = false;
             if (eChartInstance.getModel().getComponent('leaflet')) {
                 let leafletMapInstance = eChartInstance.getModel().getComponent('leaflet').getLeaflet();
-                console.log("Remove leaflet");
                 leafletMapInstance.remove();
             }
             let canvasParent = $('#canvas').parent();
@@ -235,58 +268,78 @@ function drawGraph(data, initial = true) {
     eChartsOption.series[0].data = nodes;
     eChartsOption.series[0].links = edges;
 
-    if ($('#hideNullGroups').is(':checked')) {
-        hideNullGroups();
-    }
-
-    if ($('#hideDisconnected').is(':checked')) {
-        hideDisconnected();
-    }
-
     if (eChartsOption && typeof eChartsOption === "object") {
         eChartInstance.setOption(eChartsOption, true);
     }
 }
 
-/**
- * Hide all vertices and edges, that have a NULL property.
- */
-function hideNullGroups() {
-    let vertexKeys = getValues("#vertexPropertyKeys");
-    let edgeKeys = getValues("#edgePropertyKeys");
+function drawCytoscapeGraph(data, initial = true) {
+    // lists of vertices and edges
+    let nodes = data.nodes.map((eChartNode, index) => {
+        let id = eChartNode.name;
+        let valueElement = eChartNode.value[2];
+        let label = valueElement.label;
+        let properties = valueElement.properties;
+        let color = eChartNode.itemStyle.color;
 
-    let nodes = [];
-    for(let i = 0; i < cy.nodes().length; i++) {
-        nodes[i] = cy.nodes()[i]
-    }
+        return {
+            data: {
+                id: id,
+                label : label,
+                properties : properties,
+                color : color,
+                tx_from : valueElement['tx_from'],
+                tx_to : valueElement['tx_to'],
+                val_from : valueElement['val_from'],
+                val_to : valueElement['val_to'],
+            }
+        };
+    });
+    let edges = data.edges.map((eChartEdge, index) => {
+        let id = eChartEdge.name;
+        let valueElement = eChartEdge.value[2];
+        let label = valueElement.label;
+        let properties = valueElement.properties;
+        let color = eChartEdge.lineStyle.color;
 
-    let edges = [];
-    for(let i = 0; i < cy.edges().length; i++) {
-        edges[i] = cy.edges()[i];
-    }
+        return {
+            data: {
+                id: id,
+                source : eChartEdge.source,
+                target : eChartEdge.target,
+                label : label,
+                properties : properties,
+                color : color,
+                tx_from : valueElement['tx_from'],
+                tx_to : valueElement['tx_to'],
+                val_from : valueElement['val_from'],
+                val_to : valueElement['val_to'],
+            }
+        };
+    });
 
-    nodes
-        .filter(node => vertexKeys.find((key) => node.data().properties[key] === "NULL"))
-        .forEach(node => node.remove());
+    cytoscapeInstance.elements().remove();
+    cytoscapeInstance.add(nodes);
+    cytoscapeInstance.add(edges);
 
-    edges
-        .filter(edge => edgeKeys.find((key) => edge.data().properties[key] === "NULL"))
-        .forEach(edge => edge.remove());
-}
-
-/**
- * Function to hide all disconnected vertices (vertices without edges).
- */
-function hideDisconnected() {
-    let nodes = [];
-    for(let i = 0; i < cy.nodes().length; i++) {
-        nodes[i] = cy.nodes()[i]
-    }
-
-    nodes.filter(node => {
-        return (cy.edges('[source="' + node.id() + '"]').length === 0)
-            && (cy.edges('[target="' + node.id() + '"]').length === 0)
-    }).forEach(node => node.remove());
+    let layout = cytoscapeInstance.layout(
+        {
+            name: 'cose',
+            refresh: 4,
+            fit: true,
+            padding: 30,
+            nodeRepulsion: 8000000,
+            nodeOverlap: 10,
+            idealEdgeLength: 1,
+            edgeElasticity: 100,
+            nestingFactor: 5,
+            gravity: 100,
+            numIter: 50,
+            initialTemp: 200,
+            coolingFactor: 0.95,
+            minTemp: 1.0,
+        });
+    layout.run()
 }
 
 /**---------------------------------------------------------------------------------------------------------------------
