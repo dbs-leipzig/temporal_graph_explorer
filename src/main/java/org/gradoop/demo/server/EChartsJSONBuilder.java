@@ -30,7 +30,6 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Random;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
 
@@ -75,9 +74,10 @@ public class EChartsJSONBuilder {
    */
   private static final String EDGE_TARGET = "target";
 
-  private static HashMap<String, String> LABEL_COLOR_MAP = new HashMap<>();
-
-  private static Random RANDOM = new Random();
+  /**
+   * A color map for label colors.
+   */
+  private static final HashMap<String, String> LABEL_COLOR_MAP = new HashMap<>();
 
   /**
    * Takes a logical graph and converts it into a eCharts-conform JSON.
@@ -276,12 +276,16 @@ public class EChartsJSONBuilder {
     }
     // then color by label
     if (!LABEL_COLOR_MAP.containsKey(element.getLabel())) {
-      // create a big random number - maximum is cccccc (hex) = 16777215 (dez)
-      int nextInt = RANDOM.nextInt(0xcccccc + 1);
-      // format it as hexadecimal string (with hashtag and leading zeros)
-      LABEL_COLOR_MAP.put(element.getLabel(), String.format("#%06x", nextInt));
+      int r = 0;
+      int g = 0;
+      int b = 0;
+      while (r + g + b < 382) {
+        r = (int) Math.floor((Math.random() * 255));
+        g = (int) Math.floor((Math.random() * 255));
+        b = (int) Math.floor((Math.random() * 255));
+      }
+      LABEL_COLOR_MAP.put(element.getLabel(), String. format("#%02X%02X%02X", r, g, b));
     }
-
     return LABEL_COLOR_MAP.get(element.getLabel());
   }
 }

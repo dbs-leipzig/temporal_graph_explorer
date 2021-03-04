@@ -152,7 +152,7 @@ public class RequestHandler {
   @GET
   @Path("/graphs")
   @Produces("application/json;charset=utf-8")
-  public Response getGraphs() throws Exception {
+  public Response getGraphs() {
     final URL resource = RequestHandler.class.getResource("/data");
     JSONArray result = new JSONArray();
 

@@ -27,6 +27,8 @@ let leafletCenter = [-73.9559308, 40.7747878];
 
 let eChartInstance;
 
+let cytoscapeInstance;
+
 let eChartsOption = {};
 
 /**----------------
@@ -67,12 +69,271 @@ function getValues(element) {
  * Builds the eCharts environment.
  */
 function buildECharts() {
+    isEChartsInUsage = true;
     eChartInstance = echarts.init(document.getElementById('canvas'));
 
     eChartsOption = getEChartsOptions(false);
 
     if (eChartsOption && typeof eChartsOption === "object") {
         eChartInstance.setOption(eChartsOption);
+    }
+}
+
+function buildCytoscape() {
+    isEChartsInUsage = false;
+
+    cytoscapeInstance = cytoscape({
+        container: document.getElementById('canvas'),
+        style: cytoscape.stylesheet()
+            .selector('node')
+            .css({
+                // define label content and font
+                'content': function (node) {
+
+                    let labelString = node.data('label');
+
+                    let properties = node.data('properties');
+
+                    if (properties['count'] != null) {
+                        labelString += ' (' + properties['count'] + ')';
+                    }
+                    return labelString;
+                },
+                // if the count shall effect the vertex size, set font size accordingly
+                'font-size': function (node) {
+                    /*if ($('#showCountAsSize').is(':checked')) {
+                        let count = node.data('properties')['count'];
+                        if (count != null) {
+                            count = count / maxVertexCount;
+                            // surface of vertices is proportional to count
+                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
+                        }
+                    }*/
+                    return 10;
+                },
+                'text-valign': 'center',
+                'color': 'black',
+                // this function changes the text color according to the background color
+                // unnecessary atm because only light colors can be generated
+                /* function (vertices) {
+                 let label = getLabel(vertices, vertexLabelKey, useDefaultLabel);
+                 let bgColor = colorMap[label];
+                 if (bgColor[0] + bgColor[1] + (bgColor[2] * 0.7) < 300) {
+                 return 'white';
+                 }
+                 return 'black';
+                 },*/
+                // set background color according to color map
+                'background-color': function (node) {
+                    return node.data('color');
+                },
+
+                /* size of vertices can be determined by property count
+                 count specifies that the vertex stands for
+                 1 or more other vertices */
+                'width': function (node) {
+                   /* if ($('#showCountAsSize').is(':checked')) {
+                        let count = node.data('properties')['count'];
+                        if (count !== null) {
+                            count = count / maxVertexCount;
+                            // surface of vertex is proportional to count
+                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
+                        }
+                    }*/
+                    return '60px';
+                },
+                'height': function (node) {
+                   /* if ($('#showCountAsSize').is(':checked')) {
+                        let count = node.data('properties')['count'];
+                        if (count !== null) {
+                            count = count / maxVertexCount;
+                            // surface of vertex is proportional to count
+                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
+                        }
+                    }*/
+                    return '60px';
+                },
+                'text-wrap': 'wrap',
+            })
+            .selector('edge')
+            .css({
+                'curve-style': 'bezier',
+                // layout of edge and edge label
+                'content': function (edge) {
+                    if (!$('#showEdgeLabels').is(':checked')) {
+                        return '';
+                    }
+                    let labelString = '';
+                    labelString = edge.data('label');
+
+                    let properties = edge.data('properties');
+
+                    if (properties['count']) {
+                        labelString += ' (' + properties['count'] + ')';
+                    }
+
+                    return labelString;
+                },
+                // if the count shall effect the vertex size, set font size accordingly
+                'font-size': function (edge) {
+                    /*if ($('#showCountAsSize').is(':checked')) {
+                        let count = edge.data('properties')['count'];
+                        if (count !== null) {
+                            count = count / maxVertexCount;
+                            // surface of vertices is proportional to count
+                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
+                        }
+                    }*/
+                    return 10;
+                },
+                'line-color': function (edge) {
+                    return edge.data('color');
+                },
+                // width of edges can be determined by property count
+                // count specifies that the edge represents 1 or more other edges
+                'width': function (edge) {
+                    /*if ($('#showCountAsSize').is(':checked')) {
+                        let count = edge.data('properties')['count'];
+                        if (count !== null) {
+                            count = count / maxEdgeCount;
+                            return Math.sqrt(count * 1000);
+                        }
+                    }*/
+                    return 2;
+                },
+                'target-arrow-shape': 'triangle',
+                'target-arrow-color': '#000'
+            })
+            // properties of edges and vertices in special states, e.g. invisible or faded
+            .selector('.faded')
+            .css({
+                'opacity': 0.25,
+                'text-opacity': 0
+            })
+            .selector('.invisible')
+            .css({
+                'opacity': 0,
+                'text-opacity': 0
+            }),
+        ready: function () {
+            cytoscapeInstance = this;
+            cytoscapeInstance.elements().unselectify();
+            /* if a vertex is selected, fade all edges and vertices
+            that are not in direct neighborhood of the vertex */
+            cytoscapeInstance.on('tap', 'node', nodeTap);
+            cytoscapeInstance.on('tap', 'edge', edgeTap);
+
+            // remove fading by clicking somewhere else
+            cytoscapeInstance.on('tap', function (e) {
+                if (e.target === cytoscapeInstance) {
+                    cytoscapeInstance.elements().removeClass('faded');
+                }
+            });
+        }
+    });
+
+    /**
+     * Callback for tapping on a node.
+     *
+     * @param event
+     */
+    function nodeTap(event) {
+        let node = event.target;
+        let neighborhood = node.neighborhood().add(node);
+
+        cytoscapeInstance.elements().addClass('faded');
+        neighborhood.removeClass('faded');
+
+        let ref = node.popperRef(); // used only for positioning
+        let dummyDomEle = document.createElement('div');
+
+        let tip = tippy(dummyDomEle, { // tippy options:
+            // mandatory:
+            trigger: 'manual', // call show() and hide() yourself
+            getReferenceClientRect: ref.getBoundingClientRect,
+
+            content: () => {
+                let content = document.createElement('div');
+
+                let qtipText = '';
+                let label = this.data()['label'];
+
+                if (label != null) {
+                    qtipText += '<b>' + label + '</b><br>';
+                }
+                for (let [key, value] of Object.entries(this.data('properties'))) {
+                    if (key === 'label') {
+                        qtipText += '<b>' + value + '</b><br>';
+                    } else if (key === 'id' || key === 'source' || key === 'target'){
+                        // don't print
+                    } else {
+                        qtipText += key + ' : ' + value + '<br>';
+                    }
+                }
+
+                qtipText += '<br>'
+                qtipText += '<i>TPGM temporal attributes</i><br>'
+                qtipText += 'tx_from : ' + this.data('tx_from') + '<br>';
+                qtipText += 'tx_to : ' + this.data('tx_to') + '<br>';
+                qtipText += 'val_from : ' + this.data('val_from') + '<br>';
+                qtipText += 'val_to : ' + this.data('val_to') + '<br>';
+
+                content.innerHTML = qtipText;
+                return content;
+            }
+        });
+        tip.show();
+    }
+
+    /**
+     * Callback for tapping on an edge.
+     *
+     * @param event
+     */
+    function edgeTap(event) {
+        let edge = event.target;
+        let nodes = edge.connectedNodes().add(edge);
+        cytoscapeInstance.elements().addClass('faded');
+        nodes.removeClass('faded');
+
+        let ref = edge.popperRef(); // used only for positioning
+        let dummyDomEle = document.createElement('div');
+
+        let tip = tippy(dummyDomEle, { // tippy options:
+            // mandatory:
+            trigger: 'manual', // call show() and hide() yourself
+            getReferenceClientRect: ref.getBoundingClientRect,
+
+            // your custom options follow:
+
+            content: () => {
+                let content = document.createElement('div');
+
+                let qtipText = '';
+                let label = this.data('label');
+
+                if (label != null) {
+                    qtipText += '<b>' + label + '</b><br>';
+                }
+
+                for (let [key, value] of Object.entries(this.data('properties'))) {
+                    qtipText += key + ' : ' + value + '<br>';
+                }
+
+                qtipText += '<br>'
+                qtipText += '<i>TPGM temporal attributes</i><br>'
+                qtipText += 'tx_from : ' + this.data('tx_from') + '<br>';
+                qtipText += 'tx_to : ' + this.data('tx_to') + '<br>';
+                qtipText += 'val_from : ' + this.data('val_from') + '<br>';
+                qtipText += 'val_to : ' + this.data('val_to') + '<br>';
+
+                content.innerHTML = qtipText;
+
+                return content;
+            }
+        });
+
+        tip.show();
     }
 }
 
@@ -202,3 +463,4 @@ function loadDatabases() {
         $('#databaseName').html(options);
     }, "json");
 }
+
