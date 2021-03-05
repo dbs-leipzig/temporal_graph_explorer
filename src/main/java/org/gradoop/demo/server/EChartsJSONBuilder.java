@@ -29,6 +29,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
@@ -73,6 +74,14 @@ public class EChartsJSONBuilder {
    * Key for edge target vertex id.
    */
   private static final String EDGE_TARGET = "target";
+  /**
+   * Key for vertex identifiers at graphs.
+   */
+  private static final String VERTEX_KEYS = "node_keys";
+  /**
+   * Key for vertex identifiers at graphs.
+   */
+  private static final String EDGE_KEYS = "edge_keys";
 
   /**
    * A color map for label colors.
@@ -94,6 +103,8 @@ public class EChartsJSONBuilder {
     List<TemporalEdge> edges) throws JSONException {
 
     JSONObject returnedJSON = new JSONObject();
+    HashSet<String> uniqueVertexPropertyKeys = new HashSet<>();
+    HashSet<String> uniqueEdgePropertyKeys = new HashSet<>();
 
     boolean hasSpatialVertexProperties = !vertices.isEmpty();
 
@@ -110,16 +121,34 @@ public class EChartsJSONBuilder {
       hasSpatialVertexProperties = hasSpatialVertexProperties && vertexObject.has("value") &&
         vertexObject.getJSONArray("value").getDouble(0) != 0. &&
         vertexObject.getJSONArray("value").getDouble(1) != 0.;
+
+      if (vertex.getProperties() != null) {
+        vertex.getProperties().forEach((prop) -> {
+          if (prop.getValue().isNumber()) {
+            uniqueVertexPropertyKeys.add(prop.getKey());
+          }
+        });
+      }
     }
     returnedJSON.put(VERTICES, vertexArray);
+    returnedJSON.put(VERTEX_KEYS, new JSONArray(uniqueVertexPropertyKeys));
 
     returnedJSON.put(TYPE, hasSpatialVertexProperties ? "spatialGraph" : "graph");
 
     JSONArray edgeArray = new JSONArray();
     for (TemporalEdge edge : edges) {
       edgeArray.put(getEdgeObject(edge));
+
+      if (edge.getProperties() != null) {
+        edge.getProperties().forEach((prop) -> {
+          if (prop.getValue().isNumber()) {
+            uniqueEdgePropertyKeys.add(prop.getKey());
+          }
+        });
+      }
     }
     returnedJSON.put(EDGES, edgeArray);
+    returnedJSON.put(EDGE_KEYS, new JSONArray(uniqueEdgePropertyKeys));
 
     return returnedJSON.toString();
   }
