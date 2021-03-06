@@ -36,6 +36,7 @@ import org.gradoop.demo.server.pojo.KeyedGroupingRequest;
 import org.gradoop.demo.server.pojo.SnapshotRequest;
 import org.gradoop.flink.model.api.functions.AggregateFunction;
 import org.gradoop.flink.model.api.functions.KeyFunction;
+import org.gradoop.flink.model.api.functions.KeyFunctionWithDefaultValue;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.average.AverageProperty;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.count.Count;
 import org.gradoop.flink.model.impl.operators.aggregation.functions.max.MaxProperty;
@@ -45,6 +46,7 @@ import org.gradoop.flink.model.impl.operators.aggregation.functions.min.MinVerte
 import org.gradoop.flink.model.impl.operators.aggregation.functions.sum.SumProperty;
 import org.gradoop.flink.model.impl.operators.keyedgrouping.GroupingKeys;
 import org.gradoop.flink.model.impl.operators.keyedgrouping.KeyedGrouping;
+import org.gradoop.flink.model.impl.operators.keyedgrouping.labelspecific.LabelSpecificKeyFunction;
 import org.gradoop.temporal.io.impl.csv.TemporalCSVDataSource;
 import org.gradoop.temporal.model.api.TimeDimension;
 import org.gradoop.temporal.model.api.functions.TemporalPredicate;
@@ -85,9 +87,14 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.gradoop.flink.model.impl.operators.keyedgrouping.GroupingKeys.label;
 
 /**
  * Handles REST requests to the server.
@@ -209,13 +216,51 @@ public class RequestHandler {
     List<AggregateFunction> vertexAggregates = new ArrayList<>();
     List<AggregateFunction> edgeAggregates = new ArrayList<>();
 
+    Map<String, List<KeyFunctionWithDefaultValue<TemporalVertex, ?>>> labelSpecVertexKeys = new HashMap<>();
+    Map<String, List<KeyFunctionWithDefaultValue<TemporalEdge, ?>>> labelSpecEdgeKeys = new HashMap<>();
+
     for (KeyFunctionArguments keyFunction : request.getKeyFunctions()) {
+      if (keyFunction.getLabelspec() != null && !keyFunction.getLabelspec().equals("no")) {
+        if (keyFunction.getType().equals("vertex")) {
+          if (labelSpecVertexKeys.containsKey(keyFunction.getLabelspec())) {
+            labelSpecVertexKeys.get(keyFunction.getLabelspec()).add(getKeyFunction(keyFunction));
+          } else {
+            labelSpecVertexKeys.put(LabelSpecificKeyFunction.DEFAULT_GROUP_LABEL, Collections.singletonList(label()));
+            ArrayList<KeyFunctionWithDefaultValue<TemporalVertex, ?>> keyFunctionsForLabel = new ArrayList<>();
+            keyFunctionsForLabel.add(getKeyFunction(keyFunction));
+            labelSpecVertexKeys.put(keyFunction.getLabelspec(), keyFunctionsForLabel);
+          }
+        } else if (keyFunction.getType().equals("edge")) {
+          if (labelSpecEdgeKeys.containsKey(keyFunction.getLabelspec())) {
+            labelSpecEdgeKeys.get(keyFunction.getLabelspec()).add(getKeyFunction(keyFunction));
+          } else {
+            labelSpecEdgeKeys.put(LabelSpecificKeyFunction.DEFAULT_GROUP_LABEL, Collections.singletonList(label()));
+            ArrayList<KeyFunctionWithDefaultValue<TemporalEdge, ?>> keyFunctionsForLabel = new ArrayList<>();
+            keyFunctionsForLabel.add(getKeyFunction(keyFunction));
+            labelSpecEdgeKeys.put(keyFunction.getLabelspec(), keyFunctionsForLabel);
+          }
+        }
+      }
+    }
+
+    // add the label specific keys to the grouping keys
+    if (!labelSpecVertexKeys.isEmpty()) {
+      vertexKeyFunctions.add(GroupingKeys.labelSpecific(labelSpecVertexKeys));
+    }
+    if (!labelSpecEdgeKeys.isEmpty()) {
+      edgeKeyFunctions.add(GroupingKeys.labelSpecific(labelSpecEdgeKeys));
+    }
+
+    for (KeyFunctionArguments keyFunction : request.getKeyFunctions()) {
+      if (keyFunction.getLabelspec() != null && !keyFunction.getLabelspec().equals("no")) {
+        continue;
+      }
       if (keyFunction.getType().equals("vertex")) {
         // We have a vertex key function
-        addKeyFunctionToList(vertexKeyFunctions, keyFunction);
+        vertexKeyFunctions.add(getKeyFunction(keyFunction));
       } else if (keyFunction.getType().equals("edge")) {
         // We have a edge key function
-        addKeyFunctionToList(edgeKeyFunctions, keyFunction);
+        edgeKeyFunctions.add(getKeyFunction(keyFunction));
       } else {
         return Response
           .serverError()
@@ -679,46 +724,39 @@ public class RequestHandler {
    * Add the key function represented by the {@link KeyFunctionArguments} parameter to the list of key
    * functions.
    *
-   * @param keyFunctionList he list which will be extended
    * @param keyFunction the key function configuration
    * @param <T> the type of the temporal element
    */
-  private <T extends TemporalElement> void addKeyFunctionToList(List<KeyFunction<T,?>> keyFunctionList,
-    KeyFunctionArguments keyFunction) {
+  private <T extends TemporalElement> KeyFunctionWithDefaultValue<T,?> getKeyFunction(KeyFunctionArguments keyFunction) {
     switch (keyFunction.getKey()) {
     case "label":
-      keyFunctionList.add(GroupingKeys.label());
-      break;
+      return GroupingKeys.label();
     case "property":
-      keyFunctionList.add(GroupingKeys.property(keyFunction.getProp()));
-      break;
+      return GroupingKeys.property(keyFunction.getProp());
     case "timestamp":
       if (keyFunction.getField().equals("no")) {
-        keyFunctionList.add(
+        return
           TemporalGroupingKeys.timeStamp(
             getTimeDimension(keyFunction.getDimension()),
-            getPeriodBound(keyFunction.getPeriodBound())));
+            getPeriodBound(keyFunction.getPeriodBound()));
       } else {
-        keyFunctionList.add(
+        return
           TemporalGroupingKeys.timeStamp(
             getTimeDimension(keyFunction.getDimension()),
             getPeriodBound(keyFunction.getPeriodBound()),
-            getTemporalField(keyFunction.getField())));
+            getTemporalField(keyFunction.getField()));
       }
-      break;
     case "interval":
-      keyFunctionList.add(
+      return
         TemporalGroupingKeys.timeInterval(
-          getTimeDimension(keyFunction.getDimension())));
-      break;
+          getTimeDimension(keyFunction.getDimension()));
     case "duration":
-      keyFunctionList.add(
+      return
         TemporalGroupingKeys.duration(
           getTimeDimension(keyFunction.getDimension()),
           getTemporalUnit(keyFunction.getUnit())
-        )
-      );
-      break;
+        );
+    default: throw new IllegalArgumentException("The provided key function is unknown.");
     }
   }
 

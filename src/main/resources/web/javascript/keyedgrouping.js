@@ -163,6 +163,15 @@ $(document).ready(function () {
     buildECharts();
 });
 
+/**
+ * Whenever one of the view options is changed, redraw the graph
+ */
+$(document).on("change", '.redraw', function() {
+    if (bufferedData) {
+        drawGraph(bufferedData, false);
+    }
+});
+
 /**---------------------------------------------------------------------------------------------------------------------
  * Graph Drawing
  *-------------------------------------------------------------------------------------------------------------------*/
@@ -320,6 +329,10 @@ function drawEChartsGraph(data, initial = true) {
 }
 
 function drawCytoscapeGraph(data, initial = true) {
+    if(initial) {
+        // buffer the data to speed up redrawing
+        bufferedData = data;
+    }
     // lists of vertices and edges
     let nodes = data.nodes;
     let edges = data.edges;
@@ -570,7 +583,7 @@ function getKeyFunctions() {
         returnFunctions[i] = {};
         returnFunctions[i]['key'] = element.find('select[name="keyFunction"]').val();
         returnFunctions[i]['type'] = type;
-        returnFunctions[i]['labelspec'] = argBody.find('select[name="' + type + 'labelSpec"]').val();
+        returnFunctions[i]['labelspec'] = argBody.find('select[name="' + type + 'LabelSpec"]').val();
         returnFunctions[i]['prop'] = argBody.find('select[name="' + type + 'Prop"]').val();
         returnFunctions[i]['dimension'] = argBody.find('select[name="dimension"]').val();
         returnFunctions[i]['periodBound'] = argBody.find('select[name="periodBound"]').val();
