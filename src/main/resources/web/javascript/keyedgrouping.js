@@ -18,10 +18,9 @@
  * Global Values
  *-------------------------------------------------------------------------------------------------------------------*/
 /**
- * Maximum value for the count attribute of vertices
- * @type {number}
+ * Minimum and maximum value for a given property
  */
-let maxVertexCount = 0;
+let minMaxPropValue = { vertex : { }, edge : { } };
 
 /**
  * Maximum value for the count attribute of edges
@@ -46,25 +45,6 @@ let isEChartsInUsage = true;
 $(document).on("change", "#databaseName", loadDatabaseProperties);
 
 /**
- * Make sure that only one vertex/edge aggregate is checked for adaptive lement size.
- */
-$(document).on('change', 'input[name="useForAdaptiveSize"]', function () {
-    let theSwitch = $(this);
-    if (theSwitch.is(':checked')) {
-        // check if the switch belongs to a vertex or edge
-        let thisTypeSelect = theSwitch.parents('.input-aggregate-func').find('select[name="type"]');
-        let aggType = thisTypeSelect.val();
-        //find all other switches and deactivate them
-        $('.input-aggregate-func').each(function( index ) {
-            let typeSelect = $( this ).find('select[name="type"]');
-            if (typeSelect.val() === aggType && typeSelect.get(0) !== thisTypeSelect.get(0)) {
-                $( this ).find('input[name="useForAdaptiveSize"]').prop( "checked", false );
-            }
-        });
-    }
-})
-
-/**
  * When the 'Show whole graph' button is clicked, send a request to the server for the whole graph
  */
 $(document).on("click",'#showWholeGraph', function(e) {
@@ -73,6 +53,7 @@ $(document).on("click",'#showWholeGraph', function(e) {
     btn.addClass("loading");
     let databaseName = getSelectedDatabase();
     $.post('http://localhost:2342/graph/' + databaseName, function(data) {
+        updateAdaptiveSizeSelects(data['node_keys'], data['edge_keys']);
         drawGraph(data, true);
         btn.removeClass("loading");
     }, "json");
@@ -100,6 +81,7 @@ $(document).on('click', ".execute-button", function () {
         contentType: "application/json",
         data: JSON.stringify(reqData),
         success: function(data) {
+            updateAdaptiveSizeSelects(data['node_keys'], data['edge_keys']);
             drawGraph(data, true);
             btn.removeClass('loading');
         }
@@ -231,16 +213,80 @@ function drawEChartsGraph(data, initial = true) {
         // buffer the data to speed up redrawing
         bufferedData = data;
 
-        // compute maximum count of all vertices, used for scaling the vertex sizes
-        maxVertexCount = nodes.reduce((acc, node) => {
-            return Math.max(acc, Number(node.value[2]['properties']['count']))
-        }, 0);
+        // Calculate min and max values for all numerical properties
+        nodes.forEach((node) => {
+            data['node_keys'].forEach(function (key) {
+                let value = Number(node.value[2]['properties'][key]);
+                if (value) {
+                    if (minMaxPropValue.vertex[key]) {
+                        if (value < minMaxPropValue.vertex[key].min) {
+                            minMaxPropValue.vertex[key].min = value;
+                        }
+                        if (value > minMaxPropValue.vertex[key].max) {
+                            minMaxPropValue.vertex[key].max = value;
+                        }
+                    } else {
+                        minMaxPropValue.vertex[key] = {min: value, max: value};
+                    }
+                }
+            });
+        });
 
-        // compute maximum count of all edges, used for scaling the edge sizes
-        maxEdgeCount = edges.reduce((acc, edge) => {
-            return Math.max(acc, Number(edge.value[2]['properties']['count']))
-        }, 0);
+        // Calculate min and max values for all numerical properties
+        edges.forEach((edge) => {
+            data['edge_keys'].forEach(function (key) {
+                let value = Number(edge.value[2]['properties'][key]);
+                if (value) {
+                    if (minMaxPropValue.edge[key]) {
+                        if (value < minMaxPropValue.edge[key].min) {
+                            minMaxPropValue.edge[key].min = value;
+                        }
+                        if (value > minMaxPropValue.edge[key].max) {
+                            minMaxPropValue.edge[key].max = value;
+                        }
+                    } else {
+                        minMaxPropValue.edge[key] = { min : value, max : value};
+                    }
+                }
+            });
+        });
     }
+
+    let selectedVertexKey = $('#vertexPropertyAdaptiveSelect').val();
+    let selectedEdgeKey = $('#edgePropertyAdaptiveSelect').val();
+
+    nodes.forEach((eChartNode) => {
+        if (selectedVertexKey !== '_default' && eChartNode.value[2]['properties'][selectedVertexKey]) {
+            let propValue = eChartNode.value[2]['properties'][selectedVertexKey];
+            if (propValue !== null) {
+                let minValue = minMaxPropValue.vertex[selectedVertexKey].min;
+                let maxValue = minMaxPropValue.vertex[selectedVertexKey].max;
+
+                if (maxValue !== minValue) {
+                    eChartNode['symbolSize'] = getAdaptiveValue(minValue, maxValue, 8, 38, propValue);
+                }
+            }
+        } else {
+            eChartNode['symbolSize'] = 8;
+        }
+    });
+
+    edges.forEach((eChartEdge) => {
+        if (selectedEdgeKey !== '_default' && eChartEdge.value[2]['properties'][selectedEdgeKey]) {
+            let propValue = eChartEdge.value[2]['properties'][selectedEdgeKey];
+            if (propValue !== null) {
+                let minValue = minMaxPropValue.edge[selectedEdgeKey].min;
+                let maxValue = minMaxPropValue.edge[selectedEdgeKey].max;
+
+                if (maxValue !== minValue) {
+                    eChartEdge['lineStyle']['width'] = getAdaptiveValue(minValue, maxValue, 5, 30, propValue);
+                }
+            }
+        } else {
+            eChartEdge['lineStyle']['width'] = 5;
+        }
+    });
+
 
     if (data.type === 'spatialGraph') {
         if (isLeafletLayoutInUsage) {
@@ -275,12 +321,36 @@ function drawEChartsGraph(data, initial = true) {
 
 function drawCytoscapeGraph(data, initial = true) {
     // lists of vertices and edges
-    let nodes = data.nodes.map((eChartNode, index) => {
+    let nodes = data.nodes;
+    let edges = data.edges;
+
+    if(initial) {
+        // buffer the data to speed up redrawing
+        bufferedData = data;
+    }
+    // lists of vertices and edges
+    nodes = nodes.map((eChartNode, index) => {
         let id = eChartNode.name;
         let valueElement = eChartNode.value[2];
         let label = valueElement.label;
         let properties = valueElement.properties;
         let color = eChartNode.itemStyle.color;
+
+        data['node_keys'].forEach(function (key) {
+            let value = Number(properties[key]);
+            if (value) {
+                if (minMaxPropValue.vertex[key]) {
+                    if (value < minMaxPropValue.vertex[key].min) {
+                        minMaxPropValue.vertex[key].min = value;
+                    }
+                    if (value > minMaxPropValue.vertex[key].max) {
+                        minMaxPropValue.vertex[key].max = value;
+                    }
+                } else {
+                    minMaxPropValue.vertex[key] = { min : value, max : value};
+                }
+            }
+        });
 
         return {
             data: {
@@ -295,12 +365,28 @@ function drawCytoscapeGraph(data, initial = true) {
             }
         };
     });
-    let edges = data.edges.map((eChartEdge, index) => {
+    edges = edges.map((eChartEdge, index) => {
         let id = eChartEdge.name;
         let valueElement = eChartEdge.value[2];
         let label = valueElement.label;
         let properties = valueElement.properties;
         let color = eChartEdge.lineStyle.color;
+
+        data['edge_keys'].forEach(function (key) {
+            let value = Number(properties[key]);
+            if (value) {
+                if (minMaxPropValue.edge[key]) {
+                    if (value < minMaxPropValue.edge[key].min) {
+                        minMaxPropValue.edge[key].min = value;
+                    }
+                    if (value > minMaxPropValue.edge[key].max) {
+                        minMaxPropValue.edge[key].max = value;
+                    }
+                } else {
+                    minMaxPropValue.edge[key] = { min : value, max : value};
+                }
+            }
+        });
 
         return {
             data: {
@@ -508,8 +594,33 @@ function getAggFunctions() {
         returnFunctions[i]['prop'] = argBody.find('select[name="' + type + 'Prop"]').val();
         returnFunctions[i]['dimension'] = argBody.find('select[name="dimension"]').val();
         returnFunctions[i]['periodBound'] = argBody.find('select[name="periodBound"]').val();
-        returnFunctions[i]['useForAdaptiveSize'] = element.find('input[name="useForAdaptiveSize"]')
-            .is(':checked');
     }
     return returnFunctions;
+}
+
+/**
+ * Updates the two selects for choosing a property to use for the adaptive size
+ *
+ * @param vertexKeys an array of numerical vertex property keys
+ * @param edgeKeys and array of numerical edge property keys
+ */
+function updateAdaptiveSizeSelects(vertexKeys, edgeKeys) {
+    let vertexKeySelect = $('#vertexPropertyAdaptiveSelect');
+    let edgeKeySelect = $('#edgePropertyAdaptiveSelect');
+
+    // clear previous entries
+    vertexKeySelect.html("");
+    edgeKeySelect.html("");
+
+    vertexKeySelect.append($('<option value="_default">default</option>'));
+    edgeKeySelect.append($('<option value="_default">default</option>'));
+
+    // add one entry per property key
+    vertexKeys.forEach(key => {
+        vertexKeySelect.append($("<option value='" + key + "'>" + key + "</option>"));
+    });
+
+    edgeKeys.forEach(key => {
+        edgeKeySelect.append($("<option value='" + key + "'>" + key + "</option>"));
+    });
 }

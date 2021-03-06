@@ -44,11 +44,6 @@ public class AggFunctionArguments {
    */
   private String periodBound;
 
-  /**
-   * A flag to specify that the resulting value should be used for the adaptive element size.
-   */
-  private boolean useForAdaptiveSize;
-
   public String getType() {
     return type;
   }
@@ -87,13 +82,5 @@ public class AggFunctionArguments {
 
   public void setPeriodBound(String periodBound) {
     this.periodBound = periodBound;
-  }
-
-  public boolean isUseForAdaptiveSize() {
-    return useForAdaptiveSize;
-  }
-
-  public void setUseForAdaptiveSize(boolean useForAdaptiveSize) {
-    this.useForAdaptiveSize = useForAdaptiveSize;
   }
 }

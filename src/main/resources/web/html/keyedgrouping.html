@@ -303,11 +303,6 @@
                                                 </div>
                                             </div>
                                             <button class="del-agg-button btn btn-action input-group-btn"><i class="icon icon-minus"></i></button>
-                                            &nbsp;
-                                            <label class="form-switch">
-                                                <input type="checkbox" name="useForAdaptiveSize" value="false">
-                                                <i class="form-icon"></i> Use for element size.
-                                            </label>
                                         </div>
                                     </div>
                                     <button class="add-agg-button btn btn-action"><i class="icon icon-plus"></i></button>
@@ -332,11 +327,20 @@
                             <input type="checkbox" id="showEdgeLabels" name="showEdgeLabels" value="true" class="redraw">
                             <i class="form-icon"></i> Show Edge Labels
                         </label>
-                        <label class="form-switch" for="showCountAsSize">
-                            <input type="checkbox" id="showCountAsSize" name="showCountAsSize" value="true" class="redraw">
-                            <i class="form-icon"></i> Adaptive element size
-                            <span class="option-tooltip tooltip tooltip-top" data-tooltip="Requires count aggregate functions.">?</span>
+
+                        <label for="vertexPropertyAdaptiveSelect">
+                            Vertex size by Property:
+                            <select id="vertexPropertyAdaptiveSelect" class="form-select redraw" style="width: auto;">
+                                <option value="_default">default</option>
+                            </select>
                         </label>
+                        <label for="edgePropertyAdaptiveSelect">
+                            Edge width by Property:
+                            <select id="edgePropertyAdaptiveSelect" class="form-select redraw" style="width: auto;">
+                                <option value="_default">default</option>
+                            </select>
+                        </label>
+
                     </div>
                 </div>
 
