@@ -31,6 +31,10 @@ let cytoscapeInstance;
 
 let eChartsOption = {};
 
+let defaultVertexDiameter = 60;
+
+let maxVertexDiameter = 120;
+
 /**----------------
  * Callbacks
  *------------------*/
@@ -39,7 +43,9 @@ let eChartsOption = {};
  * Whenever one of the view options is changed, redraw the graph
  */
 $(document).on("change", '.redraw', function() {
-    drawGraph(bufferedData, false);
+    if (bufferedData) {
+        drawGraph(bufferedData, false);
+    }
 });
 
 /**---------------------
@@ -100,59 +106,15 @@ function buildCytoscape() {
                     return labelString;
                 },
                 // if the count shall effect the vertex size, set font size accordingly
-                'font-size': function (node) {
-                    /*if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count != null) {
-                            count = count / maxVertexCount;
-                            // surface of vertices is proportional to count
-                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
-                        }
-                    }*/
-                    return 10;
-                },
+                'font-size': getFontSize,
                 'text-valign': 'center',
                 'color': 'black',
-                // this function changes the text color according to the background color
-                // unnecessary atm because only light colors can be generated
-                /* function (vertices) {
-                 let label = getLabel(vertices, vertexLabelKey, useDefaultLabel);
-                 let bgColor = colorMap[label];
-                 if (bgColor[0] + bgColor[1] + (bgColor[2] * 0.7) < 300) {
-                 return 'white';
-                 }
-                 return 'black';
-                 },*/
                 // set background color according to color map
                 'background-color': function (node) {
                     return node.data('color');
                 },
-
-                /* size of vertices can be determined by property count
-                 count specifies that the vertex stands for
-                 1 or more other vertices */
-                'width': function (node) {
-                   /* if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertex is proportional to count
-                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
-                        }
-                    }*/
-                    return '60px';
-                },
-                'height': function (node) {
-                   /* if ($('#showCountAsSize').is(':checked')) {
-                        let count = node.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertex is proportional to count
-                            return Math.sqrt(count * 1000000 / Math.PI) + 'px';
-                        }
-                    }*/
-                    return '60px';
-                },
+                'width': getVertexDiameter,
+                'height': getVertexDiameter,
                 'text-wrap': 'wrap',
             })
             .selector('edge')
@@ -175,31 +137,28 @@ function buildCytoscape() {
                     return labelString;
                 },
                 // if the count shall effect the vertex size, set font size accordingly
-                'font-size': function (edge) {
-                    /*if ($('#showCountAsSize').is(':checked')) {
-                        let count = edge.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxVertexCount;
-                            // surface of vertices is proportional to count
-                            return Math.max(2, Math.sqrt(count * 10000 / Math.PI));
-                        }
-                    }*/
-                    return 10;
-                },
+                'font-size': getFontSize,
                 'line-color': function (edge) {
                     return edge.data('color');
                 },
                 // width of edges can be determined by property count
                 // count specifies that the edge represents 1 or more other edges
                 'width': function (edge) {
-                    /*if ($('#showCountAsSize').is(':checked')) {
-                        let count = edge.data('properties')['count'];
-                        if (count !== null) {
-                            count = count / maxEdgeCount;
-                            return Math.sqrt(count * 1000);
+                    let selectedValue = $('#edgePropertyAdaptiveSelect').val();
+
+                    if (selectedValue !== '_default' && edge.data('properties')[selectedValue]) {
+
+                        let propValue = edge.data('properties')[selectedValue];
+                        if (propValue !== null) {
+                            let minValue = minMaxPropValue.edge[selectedValue].min;
+                            let maxValue = minMaxPropValue.edge[selectedValue].max;
+
+                            if (maxValue !== minValue) {
+                                return getAdaptiveValue(minValue, maxValue, 3, 20, propValue);
+                            }
                         }
-                    }*/
-                    return 2;
+                    }
+                    return 3;
                 },
                 'target-arrow-shape': 'triangle',
                 'target-arrow-color': '#000'
@@ -231,6 +190,43 @@ function buildCytoscape() {
             });
         }
     });
+
+    function getVertexDiameter(node) {
+        let selectedValue = $('#vertexPropertyAdaptiveSelect').val();
+
+        if (selectedValue !== '_default' && node.data('properties')[selectedValue]) {
+
+            let propValue = node.data('properties')[selectedValue];
+            if (propValue !== null) {
+                let minValue = minMaxPropValue.vertex[selectedValue].min;
+                let maxValue = minMaxPropValue.vertex[selectedValue].max;
+
+                if (maxValue !== minValue) {
+                    return getAdaptiveValue(minValue, maxValue, defaultVertexDiameter,
+                        maxVertexDiameter, propValue) + 'px';
+                }
+            }
+        }
+        return defaultVertexDiameter + 'px';
+    }
+
+    function getFontSize(node) {
+        let selectedValue = $('#vertexPropertyAdaptiveSelect').val();
+
+        if (selectedValue !== '_default' && node.data('properties')[selectedValue]) {
+
+            let propValue = node.data('properties')[selectedValue];
+            if (propValue !== null) {
+                let minValue = minMaxPropValue.vertex[selectedValue].min;
+                let maxValue = minMaxPropValue.vertex[selectedValue].max;
+
+                if (maxValue !== minValue) {
+                    return getAdaptiveValue(minValue, maxValue, 4 , 20, propValue);
+                }
+            }
+        }
+        return 10;
+    }
 
     /**
      * Callback for tapping on a node.
@@ -462,5 +458,11 @@ function loadDatabases() {
         }
         $('#databaseName').html(options);
     }, "json");
+}
+
+function getAdaptiveValue(minValue, maxValue, smallestBound, highestBound, currentValue) {
+    return ( ( highestBound - smallestBound ) * currentValue +
+        ( smallestBound * maxValue - minValue * highestBound) ) /
+        (maxValue - minValue);
 }
 
