@@ -44,6 +44,12 @@ public class AggFunctionArguments {
    */
   private String periodBound;
 
+  /**
+   * The temporal unit to consider, e.g., {@code SECONDS} OR {@code MINUTES}. See
+   * {@link java.time.temporal.ChronoUnit} for all possible types. (Optional)
+   */
+  private String unit;
+
   public String getType() {
     return type;
   }
@@ -82,5 +88,13 @@ public class AggFunctionArguments {
 
   public void setPeriodBound(String periodBound) {
     this.periodBound = periodBound;
+  }
+
+  public String getUnit() {
+    return unit;
+  }
+
+  public void setUnit(String unit) {
+    this.unit = unit;
   }
 }

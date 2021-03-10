@@ -55,6 +55,7 @@ import org.gradoop.temporal.model.impl.functions.predicates.All;
 import org.gradoop.temporal.model.impl.functions.predicates.AsOf;
 import org.gradoop.temporal.model.impl.functions.predicates.Between;
 import org.gradoop.temporal.model.impl.functions.predicates.FromTo;
+import org.gradoop.temporal.model.impl.operators.aggregation.functions.AverageDuration;
 import org.gradoop.temporal.model.impl.operators.aggregation.functions.MaxDuration;
 import org.gradoop.temporal.model.impl.operators.aggregation.functions.MaxTime;
 import org.gradoop.temporal.model.impl.operators.aggregation.functions.MinDuration;
@@ -707,15 +708,18 @@ public class RequestHandler {
       break;
     case "minDuration":
       dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
-      aggregateFunctionList.add(new MinDuration("minDuration_" + dimension, dimension));
+      TemporalUnit unit = getTemporalUnit(aggregateFunctionArguments.getUnit());
+      aggregateFunctionList.add(new MinDuration(dimension, unit));
       break;
     case "maxDuration":
       dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
-      aggregateFunctionList.add(new MaxDuration("maxDuration_" + dimension, dimension));
+      unit = getTemporalUnit(aggregateFunctionArguments.getUnit());
+      aggregateFunctionList.add(new MaxDuration(dimension, unit));
       break;
     case "avgDuration":
       dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
-      aggregateFunctionList.add(new MaxDuration("avgDuration_" + dimension, dimension));
+      unit = getTemporalUnit(aggregateFunctionArguments.getUnit());
+      aggregateFunctionList.add(new AverageDuration(dimension, unit));
       break;
     }
   }
