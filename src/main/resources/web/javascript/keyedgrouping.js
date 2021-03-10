@@ -607,6 +607,7 @@ function getAggFunctions() {
         returnFunctions[i]['prop'] = argBody.find('select[name="' + type + 'Prop"]').val();
         returnFunctions[i]['dimension'] = argBody.find('select[name="dimension"]').val();
         returnFunctions[i]['periodBound'] = argBody.find('select[name="periodBound"]').val();
+        returnFunctions[i]['unit'] = argBody.find('select[name="unit"]').val();
     }
     return returnFunctions;
 }
