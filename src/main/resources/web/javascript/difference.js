@@ -118,15 +118,14 @@ function drawGraph(data, initial = true) {
         } else {
             eChartsOption = getEChartsOptions(true);
             isLeafletLayoutInUsage = true;
+            eChartInstance.clear();
         }
     } else {
         if (isLeafletLayoutInUsage) {
             eChartsOption = getEChartsOptions(false);
-            console.log(eChartsOption);
             isLeafletLayoutInUsage = false;
             if (eChartInstance.getModel().getComponent('leaflet')) {
                 let leafletMapInstance = eChartInstance.getModel().getComponent('leaflet').getLeaflet();
-                console.log("Remove leaflet");
                 leafletMapInstance.remove();
             }
             let canvasParent = $('#canvas').parent();

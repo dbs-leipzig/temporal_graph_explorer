@@ -303,6 +303,7 @@ function drawEChartsGraph(data, initial = true) {
         } else {
             eChartsOption = getEChartsOptions(true);
             isLeafletLayoutInUsage = true;
+            eChartInstance.clear();
         }
     } else {
         if (isLeafletLayoutInUsage) {

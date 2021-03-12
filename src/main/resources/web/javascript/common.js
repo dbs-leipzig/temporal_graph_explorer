@@ -350,6 +350,7 @@ function getEChartsOptions(useLeaflet) {
             {
                 name: 'Temporal Graph Explorer',
                 type: 'graph',
+                zoom: 1,
                 edgeSymbol: ['circle', 'arrow'],
                 edgeSymbolSize: [4, 10],
                 edgeLabel: {
@@ -357,7 +358,8 @@ function getEChartsOptions(useLeaflet) {
                 },
                 selectedMode : 'single',
                 lineStyle: {
-                    width: 3,
+                    width: 4,
+                    opacity: 0.9,
                 },
                 data: [],
                 links: [],
@@ -407,9 +409,17 @@ function getEChartsOptions(useLeaflet) {
                 emphasis: {
                     focus: 'adjacency',
                     lineStyle: {
-                        width: 10
-                    }
-                }
+                        width: 6,
+                    },
+                },
+                blur: {
+                    lineStyle: {
+                        opacity: 0.6,
+                    },
+                    itemStyle: {
+                        opacity: 0.6,
+                    },
+                },
             },
         ],
     };
