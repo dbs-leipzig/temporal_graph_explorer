@@ -18,7 +18,7 @@
 
     <properties>
         <dep.flink.version>1.9.3</dep.flink.version>
-        <dep.gradoop.version>0.6.0-SNAPSHOT</dep.gradoop.version>
+        <dep.gradoop.version>0.6.0</dep.gradoop.version>
         <dep.jersey.version>1.19.3</dep.jersey.version>
     </properties>
 
