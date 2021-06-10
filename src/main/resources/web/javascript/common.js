@@ -23,6 +23,12 @@
  */
 let bufferedData;
 
+/**
+ * Default value for the center of the leaflet map (Manhattan). For Leipzig (Germany) use
+ * [12.38, 51.33].
+ *
+ * @type {number[]}
+ */
 let leafletCenter = [-73.9559308, 40.7747878];
 
 let eChartInstance;
@@ -354,12 +360,26 @@ function getEChartsOptions(useLeaflet) {
                 edgeSymbol: ['circle', 'arrow'],
                 edgeSymbolSize: [4, 10],
                 edgeLabel: {
-                    fontSize: 20,
+                    show: true,
+                    position: "middle",
+                    formatter : function (params) {
+                        if (!$('#showEdgeLabels').is(':checked')) {
+                            return '';
+                        }
+                        let labelString = '';
+                        labelString = params.value[2]['label'];
+
+                        if (params.value[2]['properties']['count']) {
+                            labelString += ' (' + params.value[2]['properties']['count'] + ')';
+                        }
+
+                        return labelString;
+                    }
                 },
                 selectedMode : 'single',
                 lineStyle: {
-                    width: 4,
-                    opacity: 0.9,
+                    width: 2,
+                    opacity: 0.8,
                 },
                 data: [],
                 links: [],
@@ -368,11 +388,14 @@ function getEChartsOptions(useLeaflet) {
                     show: true,
                     position: "right",
                     formatter: function (params) {
-                        if (params.value[2]['properties']['name']) {
-                            return params.value[2]['properties']['name'];
-                        } else {
-                            return params.value[2]['label'];
+                        let labelString = '';
+                        labelString = params.value[2]['label'];
+
+                        if (params.value[2]['properties']['count']) {
+                            labelString += ' (' + params.value[2]['properties']['count'] + ')';
                         }
+
+                        return labelString;
                     },
                 },
                 tooltip : {
@@ -409,7 +432,7 @@ function getEChartsOptions(useLeaflet) {
                 emphasis: {
                     focus: 'adjacency',
                     lineStyle: {
-                        width: 6,
+                        width: 3,
                     },
                 },
                 blur: {

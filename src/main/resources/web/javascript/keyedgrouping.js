@@ -18,6 +18,11 @@
  * Global Values
  *-------------------------------------------------------------------------------------------------------------------*/
 /**
+ * Buffers the last metadata response from the server to improve redrawing speed.
+ */
+let bufferedMetaData = [];
+
+/**
  * Minimum and maximum value for a given property
  */
 let minMaxPropValue = { vertex : { }, edge : { } };
@@ -272,7 +277,8 @@ function drawEChartsGraph(data, initial = true) {
                 let maxValue = minMaxPropValue.vertex[selectedVertexKey].max;
 
                 if (maxValue !== minValue) {
-                    eChartNode['symbolSize'] = getAdaptiveValue(minValue, maxValue, 8, 38, propValue);
+                    eChartNode['symbolSize'] =
+                        getAdaptiveValue(minValue, maxValue, 8, 26, propValue);
                 }
             }
         } else {
@@ -288,11 +294,12 @@ function drawEChartsGraph(data, initial = true) {
                 let maxValue = minMaxPropValue.edge[selectedEdgeKey].max;
 
                 if (maxValue !== minValue) {
-                    eChartEdge['lineStyle']['width'] = getAdaptiveValue(minValue, maxValue, 5, 30, propValue);
+                    eChartEdge['lineStyle']['width'] =
+                        getAdaptiveValue(minValue, maxValue, 2, 10, propValue);
                 }
             }
         } else {
-            eChartEdge['lineStyle']['width'] = 5;
+            delete eChartEdge['lineStyle']['width'];
         }
     });
 
@@ -450,12 +457,30 @@ function drawCytoscapeGraph(data, initial = true) {
  * Initialize the database menu according to the selected database
  */
 function loadDatabaseProperties() {
+    function calcLeafLetCenter(spatialData) {
+        if (spatialData['min_lat'] && spatialData['min_long'] && spatialData['max_lat'] &&
+            spatialData['max_long']) {
+            let longCenter = (spatialData['min_long'] + spatialData['max_long']) / 2;
+            let latCenter = (spatialData['min_lat'] + spatialData['max_lat']) / 2;
+            leafletCenter = [longCenter, latCenter];
+        }
+    }
+
     let databaseName = $('#databaseName').val();
-    $.post('http://localhost:2342/keys/' + databaseName, function(response) {
-        initializeFilterKeyMenus(response);
-        initializeLabelSpecSelects(response);
-        initializePropertyKeyMenus(response);
-    }, "json");
+    if (bufferedMetaData[databaseName]) {
+        calcLeafLetCenter(bufferedMetaData[databaseName]['spatialData']);
+        initializeFilterKeyMenus(bufferedMetaData[databaseName]);
+        initializeLabelSpecSelects(bufferedMetaData[databaseName]);
+        initializePropertyKeyMenus(bufferedMetaData[databaseName]);
+    } else {
+        $.post('http://localhost:2342/keys/' + databaseName, function(response) {
+            bufferedMetaData[databaseName] = response;
+            calcLeafLetCenter(bufferedMetaData[databaseName]['spatialData']);
+            initializeFilterKeyMenus(bufferedMetaData[databaseName]);
+            initializeLabelSpecSelects(bufferedMetaData[databaseName]);
+            initializePropertyKeyMenus(bufferedMetaData[databaseName]);
+        }, "json");
+    }
 }
 
 function addAggFunctionCallback(event) {

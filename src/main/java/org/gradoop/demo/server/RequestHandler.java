@@ -23,6 +23,8 @@ import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.gradoop.demo.server.functions.AcceptNoneFilter;
+import org.gradoop.demo.server.functions.FormattedMaxTime;
+import org.gradoop.demo.server.functions.FormattedMinTime;
 import org.gradoop.demo.server.functions.LabelFilter;
 import org.gradoop.demo.server.functions.LabelGroupReducer;
 import org.gradoop.demo.server.functions.LabelMapper;
@@ -57,9 +59,7 @@ import org.gradoop.temporal.model.impl.functions.predicates.Between;
 import org.gradoop.temporal.model.impl.functions.predicates.FromTo;
 import org.gradoop.temporal.model.impl.operators.aggregation.functions.AverageDuration;
 import org.gradoop.temporal.model.impl.operators.aggregation.functions.MaxDuration;
-import org.gradoop.temporal.model.impl.operators.aggregation.functions.MaxTime;
 import org.gradoop.temporal.model.impl.operators.aggregation.functions.MinDuration;
-import org.gradoop.temporal.model.impl.operators.aggregation.functions.MinTime;
 import org.gradoop.temporal.model.impl.operators.keyedgrouping.TemporalGroupingKeys;
 import org.gradoop.temporal.model.impl.pojo.TemporalEdge;
 import org.gradoop.temporal.model.impl.pojo.TemporalElement;
@@ -81,6 +81,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
@@ -94,6 +96,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 
 import static org.gradoop.flink.model.impl.operators.keyedgrouping.GroupingKeys.label;
 
@@ -112,9 +115,13 @@ public class RequestHandler {
   public static final String MAX_LONG = "max_long";
 
   /**
-   * The filename of the metadata json.
+   * The used formatter to format long timestamps.
    */
-  private final String META_FILENAME = "/metadata.json";
+  private static final DateFormat FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+  static {
+    FORMATTER.setTimeZone(TimeZone.getTimeZone("UTC"));
+  }
 
   /**
    * The Flink execution environment.
@@ -125,6 +132,11 @@ public class RequestHandler {
    * The gradoop config.
    */
   private final TemporalGradoopConfig temporalConfig = TemporalGradoopConfig.createConfig(ENV);
+
+  /**
+   * The filename of the metadata json.
+   */
+  private final String META_FILENAME = "/metadata.json";
 
   /**
    * Takes a database name via a POST request and returns the keys of all
@@ -699,12 +711,14 @@ public class RequestHandler {
     case "minTime":
       TimeDimension dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
       TimeDimension.Field field = getPeriodBound(aggregateFunctionArguments.getPeriodBound());
-      aggregateFunctionList.add(new MinTime("minTime_" + dimension + "_" + field, dimension, field));
+      aggregateFunctionList
+        .add(new FormattedMinTime("minTime_" + dimension + "_" + field, dimension, field, FORMATTER));
       break;
     case "maxTime":
       dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
       field = getPeriodBound(aggregateFunctionArguments.getPeriodBound());
-      aggregateFunctionList.add(new MaxTime("maxTime_" + dimension + "_" + field, dimension, field));
+      aggregateFunctionList
+        .add(new FormattedMaxTime("maxTime_" + dimension + "_" + field, dimension, field, FORMATTER));
       break;
     case "minDuration":
       dimension = getTimeDimension(aggregateFunctionArguments.getDimension());
