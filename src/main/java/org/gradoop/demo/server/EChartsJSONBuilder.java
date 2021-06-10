@@ -269,8 +269,9 @@ public class EChartsJSONBuilder {
    * @throws JSONException in case of a parsing error
    */
   private static void addTemporalProperties(JSONObject object, TemporalElement element) throws JSONException {
-    DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    final DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+
     object.put("val_from", formatter.format(new Date(element.getValidFrom())));
     object.put("val_to", formatter.format(new Date(element.getValidTo())));
     object.put("tx_from", formatter.format(new Date(element.getTxFrom())));
