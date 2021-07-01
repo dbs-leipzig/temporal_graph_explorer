@@ -2,6 +2,9 @@
 
 ## Temporal Graph Explorer
 
+![tge-logo](https://user-images.githubusercontent.com/18614530/124115529-311a5880-da6e-11eb-96a1-5af662327e51.png)
+
+
 ## Description
 
 Temporal property graphs are an intuitive way to model, analyze and visualize complex and evolving relationships among heterogeneous data objects, for example, as they occur in social, biological and information networks. These graphs typically contain thousands or millions of vertices and edges and their entire representation can easily overwhelm an analyst.
