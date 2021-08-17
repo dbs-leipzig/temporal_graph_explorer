@@ -77,6 +77,8 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -136,7 +138,7 @@ public class RequestHandler {
   /**
    * The filename of the metadata json.
    */
-  private final String META_FILENAME = "/metadata.json";
+  private final String META_FILENAME = "metadata.json";
 
   /**
    * Takes a database name via a POST request and returns the keys of all
@@ -150,7 +152,7 @@ public class RequestHandler {
   @Path("/keys/{databaseName}")
   @Produces("application/json;charset=utf-8")
   public Response getKeysAndLabels(@PathParam("databaseName") String databaseName) {
-    URL meta = RequestHandler.class.getResource("/data/" + databaseName + META_FILENAME);
+    URL meta = RequestHandler.class.getResource(String.format("/data/%s/%s", databaseName, META_FILENAME));
 
     try {
       if (meta == null) {
@@ -506,8 +508,9 @@ public class RequestHandler {
       jsonObject.put("vertexLabels", getVertexLabels(graph));
       jsonObject.put("edgeLabels", getEdgeLabels(graph));
       jsonObject.put("spatialData", getSpatialData(graph));
-      String dataPath = RequestHandler.class.getResource("/data/" + databaseName).getFile();
-      FileWriter writer = new FileWriter(dataPath + META_FILENAME);
+      String dataPath = RequestHandler.class.getResource(String.format("/data/%s/%s", databaseName, META_FILENAME))
+        .getFile();
+      FileWriter writer = new FileWriter(dataPath);
       jsonObject.write(writer);
       writer.flush();
       writer.close();
@@ -527,11 +530,13 @@ public class RequestHandler {
    * @return JSONObject containing the property keys and labels
    * @throws IOException if reading fails
    * @throws JSONException if JSON creation fails
+   * @throws URISyntaxException if resource path is wrong
    */
-  private JSONObject readKeysAndLabels(String databaseName) throws IOException, JSONException {
-    String dataPath = RequestHandler.class.getResource("/data/" + databaseName).getFile();
-    String content =
-      new String(Files.readAllBytes(Paths.get(dataPath + META_FILENAME)), StandardCharsets.UTF_8);
+  private JSONObject readKeysAndLabels(String databaseName) throws IOException, JSONException,
+    URISyntaxException {
+    URI dataPath = RequestHandler.class.getResource(String.format("/data/%s/%s", databaseName, META_FILENAME))
+      .toURI();
+    String content = new String(Files.readAllBytes(Paths.get(dataPath)), StandardCharsets.UTF_8);
 
     return new JSONObject(content);
   }
