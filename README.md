@@ -4,6 +4,23 @@
 
 ![tge-logo](https://user-images.githubusercontent.com/18614530/124115529-311a5880-da6e-11eb-96a1-5af662327e51.png)
 
+## Publication
+Please refer to our recent publication when using the TGE in your work.
+```
+@inproceedings{DBLP:conf/edbt/RostGFTR21,
+  author       = {Christopher Rost and
+                  Kevin G{\'{o}}mez and
+                  Philip Fritzsche and
+                  Andreas Thor and
+                  Erhard Rahm},
+  title        = {Exploration and Analysis of Temporal Property Graphs},
+  booktitle    = {{EDBT}},
+  pages        = {682--685},
+  publisher    = {OpenProceedings.org},
+  year         = {2021}
+}
+```
+
 
 ## Description
 
@@ -59,10 +76,11 @@ One way to reduce complexity of a large temporal property graph is the grouping 
 
 ### Further reading
 
+* [Exploration and Analysis of Temporal Property Graphs](https://openproceedings.org/2021/conf/edbt/p178.pdf)
 * [Evolution Analysis of Large Graphs with Gradoop, Workshop LEG@ECMLPKDD 2019, Sep. 2019](https://dbs.uni-leipzig.de/file/LEGECML-PKDD_2019_paper_9.pdf)
 * [Analyzing Temporal Graphs with Gradoop, Datenbank Spektrum 19(3), Nov. 2019](https://link.springer.com/article/10.1007/s13222-019-00325-8)
 * [Gradoop Wiki](https://github.com/dbs-leipzig/gradoop/wiki)
-* [Gradoop Source Code](http://www.gradoop.com)
+* [Gradoop Source Code](https://github.com/dbs-leipzig/gradoop)
 * [Gradoop Project Page, University of Leipzig](http://dbs.uni-leipzig.de/research/projects/gradoop)
 
 > This is an extension of the [Gradoop Demo](https://github.com/dbs-leipzig/gradoop_demo).
